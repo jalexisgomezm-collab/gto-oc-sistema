@@ -1,9 +1,3 @@
-Proceso de pensamiento
-Proceso de pensamiento
-Bien, siguiente tanda:
-
-Archivo 4 — ruta: app/login/page.tsx
-
 "use client";
 
 import { useState } from "react";
