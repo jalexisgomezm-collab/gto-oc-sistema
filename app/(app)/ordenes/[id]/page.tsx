@@ -25,7 +25,8 @@ export default async function DetalleOrdenPage({ params }: { params: Promise<{ i
         </div>
         <div className="flex gap-2">
           
-            href={`/api/ordenes/${orden.id}/docx`}
+            <a
+              href={`/api/ordenes/${orden.id}/docx`}
             className="bg-white border border-gray-300 text-sm font-medium px-4 py-2 rounded-md hover:bg-gray-50"
           >
             Descargar Word
