@@ -1,110 +1,113 @@
 import React from "react";
 import { Document, Page, View, Text, Image, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
 import path from "node:path";
-import { EMPRESA, VERDE_HEX, GRIS_ZEBRA_HEX, VERDE_CLARO_HEX, GRIS_TEXTO_HEX } from "@/lib/empresa";
+import { EMPRESA, VERDE_HEX, GRIS_ZEBRA_HEX, GRIS_TEXTO_HEX } from "@/lib/empresa";
 import { montoALetras } from "@/lib/numeroALetras";
 import type { OrdenCompraData } from "@/lib/types";
 
 const VERDE = `#${VERDE_HEX}`;
 const GRIS_ZEBRA = `#${GRIS_ZEBRA_HEX}`;
-const VERDE_CLARO = `#${VERDE_CLARO_HEX}`;
 const GRIS_TEXTO = `#${GRIS_TEXTO_HEX}`;
 
 const money = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const styles = StyleSheet.create({
-  page: { paddingTop: 24, paddingBottom: 32, paddingHorizontal: 37, fontSize: 8, fontFamily: "Helvetica", color: "#111111" },
-  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 },
-  logo: { width: 176, height: 49.6 },
+  page: { paddingTop: 28, paddingBottom: 34, paddingHorizontal: 40, fontSize: 8.5, fontFamily: "Helvetica", color: "#111111" },
+  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 },
+  logo: { width: 150, height: 42.4 },
   headerRight: { alignItems: "flex-end" },
-  tituloOC: { fontSize: 19, fontWeight: 700, color: VERDE },
-  ocNumero: { fontSize: 13, fontWeight: 700, color: VERDE, marginTop: 2 },
-  fechaEmision: { fontSize: 9, marginTop: 2 },
-  empresaNombre: { fontSize: 9, fontWeight: 700, marginBottom: 2 },
-  labelLine: { fontSize: 7.5, marginBottom: 2 },
-  labelBold: { fontWeight: 700 },
-  gridRow: { flexDirection: "row" },
-  gridCell: { flexBasis: "12.5%", flexGrow: 1, padding: 3, justifyContent: "center" },
-  gridLabel: { fontSize: 6.5, fontWeight: 700 },
-  gridValue: { fontSize: 8 },
-  sectionTitle: { fontSize: 10.5, fontWeight: 700, color: VERDE, marginTop: 6, marginBottom: 4 },
+  tituloOC: { fontSize: 20, fontWeight: 700, color: VERDE, textAlign: "right" },
+  ocNumero: { fontSize: 13, fontWeight: 700, color: VERDE, marginTop: 4 },
+  ocRuc: { fontSize: 9, marginTop: 2, color: "#333333" },
+  empresaInfo: { fontSize: 8, marginBottom: 2 },
+  empresaLabel: { fontWeight: 700 },
+  divider: { borderBottomWidth: 2, borderColor: VERDE, marginTop: 6, marginBottom: 10 },
+  infoRow: { flexDirection: "row" },
+  infoCellLabel: { padding: 5, fontSize: 8, fontWeight: 700 },
+  infoCellValue: { padding: 5, fontSize: 8 },
+  sectionBar: { backgroundColor: VERDE, paddingVertical: 5, paddingHorizontal: 8, marginTop: 12, marginBottom: 6 },
+  sectionBarText: { fontSize: 9.5, fontWeight: 700, color: "#FFFFFF" },
   itemsHeaderRow: { flexDirection: "row", backgroundColor: VERDE },
-  itemsHeaderCell: { padding: 3, fontSize: 7.5, fontWeight: 700, color: "#FFFFFF" },
+  itemsHeaderCell: { padding: 4, fontSize: 7.5, fontWeight: 700, color: "#FFFFFF" },
   itemsRow: { flexDirection: "row", borderBottomWidth: 0.5, borderColor: "#D9D9D9" },
-  itemsCell: { padding: 3, fontSize: 8 },
-  totalsWrap: { flexDirection: "row", justifyContent: "flex-end", marginTop: 4 },
-  totalsBox: { width: "45%" },
+  itemsCell: { padding: 4, fontSize: 8 },
+  totalsWrap: { flexDirection: "row", justifyContent: "flex-end", marginTop: 8 },
+  totalsBox: { width: "48%" },
   totalRow: { flexDirection: "row", backgroundColor: GRIS_ZEBRA, marginBottom: 1 },
   totalRowDestacado: { flexDirection: "row", backgroundColor: VERDE, marginBottom: 1 },
-  totalLabel: { flex: 1, padding: 4, fontSize: 8, fontWeight: 700 },
-  totalValue: { padding: 4, fontSize: 8, textAlign: "right" },
-  sonPara: { marginTop: 6, marginBottom: 6, fontSize: 8, fontWeight: 700 },
-  boxedWrap: { flexDirection: "row", gap: 6, marginBottom: 6 },
-  boxedCell: { flex: 1, backgroundColor: VERDE_CLARO, padding: 6 },
-  boxedTitle: { fontSize: 9, fontWeight: 700, color: VERDE, marginBottom: 3 },
-  boxedLine: { fontSize: 8, marginBottom: 3 },
-  obsLine: { fontSize: 8, marginBottom: 3 },
-  legalBlock: { fontSize: 8, marginBottom: 3 },
+  totalLabel: { flex: 1, padding: 5, fontSize: 8.5, fontWeight: 700 },
+  totalValue: { padding: 5, fontSize: 8.5, textAlign: "right" },
+  sonPara: { marginTop: 8, marginBottom: 4, fontSize: 8.5, fontStyle: "italic" },
+  sonLabel: { fontWeight: 700, fontStyle: "normal" },
+  bodyLine: { fontSize: 8.5, marginBottom: 3 },
+  labelBold: { fontWeight: 700 },
+  legalBlock: { fontSize: 8, marginBottom: 4, color: "#222222" },
   footer: {
     position: "absolute",
-    bottom: 14,
-    left: 37,
-    right: 37,
+    bottom: 16,
+    left: 40,
+    right: 40,
     borderTopWidth: 0.5,
     borderColor: "#CCCCCC",
-    paddingTop: 3,
-    fontSize: 7,
+    paddingTop: 4,
+    fontSize: 7.5,
     color: GRIS_TEXTO,
     textAlign: "center"
   }
 });
 
-function Grid({ campos }: { campos: [string, string][] }) {
-  const filas: [string, string][][] = [];
-  for (let i = 0; i < campos.length; i += 4) filas.push(campos.slice(i, i + 4));
+function TablaInfo({ izquierda, derecha }: { izquierda: [string, string][]; derecha: [string, string][] }) {
+  const filas = Math.max(izquierda.length, derecha.length);
   return (
-    <View>
-      {filas.map((fila, i) => (
-        <View key={i} style={styles.gridRow}>
-          {fila.map(([label, value], j) => (
-            <View key={j} style={[styles.gridCell, { backgroundColor: i % 2 === 0 ? GRIS_ZEBRA : undefined }]}>
-              <Text style={styles.gridLabel}>{label}</Text>
-              <Text style={styles.gridValue}>{value}</Text>
-            </View>
-          ))}
-        </View>
-      ))}
+    <View style={{ borderWidth: 0.5, borderColor: "#D9D9D9" }}>
+      {Array.from({ length: filas }).map((_, i) => {
+        const shaded = i % 2 === 0;
+        const [labelI, valorI] = izquierda[i] || ["", ""];
+        const [labelD, valorD] = derecha[i] || ["", ""];
+        return (
+          <View key={i} style={[styles.infoRow, { backgroundColor: shaded ? GRIS_ZEBRA : "#FFFFFF" }]}>
+            <Text style={[styles.infoCellLabel, { width: "16%" }]}>{labelI}</Text>
+            <Text style={[styles.infoCellValue, { width: "34%" }]}>{valorI}</Text>
+            <Text style={[styles.infoCellLabel, { width: "20%" }]}>{labelD}</Text>
+            <Text style={[styles.infoCellValue, { width: "30%" }]}>{valorD}</Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+function SectionBar({ texto }: { texto: string }) {
+  return (
+    <View style={styles.sectionBar}>
+      <Text style={styles.sectionBarText}>{texto}</Text>
     </View>
   );
 }
 
 function OrdenDocumento({ data, logoDataUri }: { data: OrdenCompraData; logoDataUri: string | null }) {
-  const numeroTxt = String(data.numero);
+  const numeroPadded = String(data.numero).padStart(6, "0");
   const prov = data.proveedor;
   const moneda = data.moneda || "SOLES";
   const monedaSym = moneda.toUpperCase().startsWith("DOLAR") || moneda.toUpperCase().startsWith("USD") ? "US$" : "S/";
   const monedaTexto = monedaSym === "US$" ? "DÓLARES" : "SOLES";
 
-  const campos: [string, string][] = [
-    ["PROVEEDOR", prov.razon_social || ""],
-    ["RUC", prov.ruc || ""],
-    ["CONTACTO", prov.contacto || ""],
-    ["TELÉFONO", prov.telefono || ""],
-    ["CORREO", prov.email || ""],
-    ["COTIZACIÓN", data.doc_relacionado || ""],
-    ["MONEDA", moneda.toUpperCase()],
-    ["FORMA DE PAGO", data.forma_pago || ""],
-    ["FECHA REQUERIDA", data.fecha_entrega || ""],
-    ["LUGAR DE ENTREGA", data.lugar_entrega || ""],
-    ["SOLICITANTE / COMPRADOR", data.comprador || ""],
-    ["CENTRO DE COSTOS", data.centro_costos || ""]
+  const izquierda: [string, string][] = [
+    ["R.U.C. / DNI", prov.ruc || ""],
+    ["Razón social", prov.razon_social || ""],
+    ["Dirección", prov.direccion || ""],
+    ["Contacto", prov.contacto || ""],
+    ["Celular", prov.telefono || "-"],
+    ["Correo", prov.email || "-"]
   ];
-  const extra: [string, string][] = [
-    ["DIRECCIÓN DEL PROVEEDOR", prov.direccion || ""],
-    ["CÓDIGO DE PROVEEDOR", prov.codigo_proveedor || ""]
+  const derecha: [string, string][] = [
+    ["Tipo de proveedor", "NACIONAL"],
+    ["Fecha de emisión", data.fecha_emision || ""],
+    ["Centro de costos", data.centro_costos || "-"],
+    ["Referencia de cotización", data.doc_relacionado || "-"],
+    ["Comprador", data.comprador || "-"],
+    ["Moneda", moneda === "DOLARES" ? "DÓLARES (US$)" : "SOLES (S/)"]
   ];
-  for (const kv of extra) if (kv[1]) campos.push(kv);
-  while (campos.length % 4 !== 0) campos.push(["", ""]);
 
   const items = data.items;
   const incluirCodigo = items.some((it) => (it.codigo || "").toString().trim() !== "");
@@ -132,14 +135,15 @@ function OrdenDocumento({ data, logoDataUri }: { data: OrdenCompraData; logoData
     etiquetas.push(["DESCUENTO", -descuento, false]);
   }
   etiquetas.push(["OPERACIÓN GRAVADA", opGravadas, false]);
-  etiquetas.push(["IGV 18 %", igv, false]);
+  etiquetas.push(["I.G.V. (18%)", igv, false]);
   etiquetas.push(["IMPORTE TOTAL", total, true]);
 
   const cuentas = prov.cuentas_bancarias || [];
   const condicionesExtra = data.condiciones_especiales || [];
-  const hay04 = condicionesExtra.length > 0 || !!data.garantia || !!data.penalidad || !!(data.observaciones || "").trim();
+  const observaciones = (data.observaciones || "").trim();
+  const hayObservaciones = condicionesExtra.length > 0 || !!data.garantia || !!data.penalidad || !!observaciones;
 
-  const colDescPct = incluirCodigo ? "34%" : "37%";
+  const colDescPct = incluirCodigo ? "32%" : "36%";
 
   return (
     <Page size="A4" style={styles.page}>
@@ -147,63 +151,59 @@ function OrdenDocumento({ data, logoDataUri }: { data: OrdenCompraData; logoData
         {logoDataUri ? <Image src={logoDataUri} style={styles.logo} /> : <View />}
         <View style={styles.headerRight}>
           <Text style={styles.tituloOC}>ORDEN DE COMPRA</Text>
-          <Text style={styles.ocNumero}>OC N.º {numeroTxt}</Text>
-          <Text style={styles.fechaEmision}>Fecha de emisión: {data.fecha_emision}</Text>
+          <Text style={styles.ocNumero}>N° {numeroPadded}</Text>
+          <Text style={styles.ocRuc}>R.U.C. {EMPRESA.ruc}</Text>
         </View>
       </View>
 
-      <Text style={styles.empresaNombre}>
-        {EMPRESA.nombreLegal} | RUC {EMPRESA.ruc}
-      </Text>
-      <Text style={styles.labelLine}>
-        <Text style={styles.labelBold}>DOMICILIO FISCAL (SUNAT): </Text>
+      <Text style={styles.empresaInfo}>
+        <Text style={styles.empresaLabel}>Sede fiscal: </Text>
         {EMPRESA.domicilioFiscal}
       </Text>
-      <Text style={styles.labelLine}>
-        <Text style={styles.labelBold}>SEDE OPERATIVA AREQUIPA: </Text>
+      <Text style={styles.empresaInfo}>
+        <Text style={styles.empresaLabel}>Sede operativa: </Text>
         {EMPRESA.sedeOperativa}
       </Text>
-      <Text style={styles.labelLine}>
-        <Text style={styles.labelBold}>CORREOS: </Text>
-        {EMPRESA.correos}
+      <Text style={styles.empresaInfo}>
+        Tel: {EMPRESA.celulares}   |   {EMPRESA.correos.split(" | ")[0]}
       </Text>
-      <Text style={[styles.labelLine, { marginBottom: 6 }]}>
-        <Text style={styles.labelBold}>CELULARES: </Text>
-        {EMPRESA.celulares} | PÁGINA WEB: {EMPRESA.web}
-      </Text>
+      <Text style={styles.empresaInfo}>{EMPRESA.web}</Text>
 
-      <Grid campos={campos} />
+      <View style={styles.divider} />
 
-      <Text style={styles.sectionTitle}>01 / DETALLE DEL PEDIDO</Text>
-      <View style={styles.itemsHeaderRow}>
-        <Text style={[styles.itemsHeaderCell, { width: "5%" }]}>ÍTEM</Text>
-        {incluirCodigo && <Text style={[styles.itemsHeaderCell, { width: "9%" }]}>CÓDIGO</Text>}
-        <Text style={[styles.itemsHeaderCell, { width: "6%" }]}>CANT.</Text>
-        <Text style={[styles.itemsHeaderCell, { width: "6%" }]}>U.M.</Text>
-        <Text style={[styles.itemsHeaderCell, { width: colDescPct }]}>DESCRIPCIÓN</Text>
-        <Text style={[styles.itemsHeaderCell, { width: "10%" }]}>ENTREGA</Text>
-        <Text style={[styles.itemsHeaderCell, { width: "14%", textAlign: "right" }]}>V. UNIT. ({monedaSym})</Text>
-        <Text style={[styles.itemsHeaderCell, { width: "16%", textAlign: "right" }]}>V. TOTAL ({monedaSym})</Text>
-      </View>
-      {filasItems.map((f) => (
-        <View key={f.idx} style={[styles.itemsRow, { backgroundColor: f.idx % 2 === 1 ? GRIS_ZEBRA : undefined }]} wrap={false}>
-          <Text style={[styles.itemsCell, { width: "5%", textAlign: "center" }]}>{f.idx + 1}</Text>
-          {incluirCodigo && <Text style={[styles.itemsCell, { width: "9%", textAlign: "center" }]}>{f.codigo}</Text>}
-          <Text style={[styles.itemsCell, { width: "6%", textAlign: "center" }]}>{f.cant}</Text>
-          <Text style={[styles.itemsCell, { width: "6%", textAlign: "center" }]}>{f.um}</Text>
-          <Text style={[styles.itemsCell, { width: colDescPct }]}>{f.descripcion}</Text>
-          <Text style={[styles.itemsCell, { width: "10%", textAlign: "center", fontSize: 7.5 }]}>{f.entrega}</Text>
-          <Text style={[styles.itemsCell, { width: "14%", textAlign: "right" }]}>{money(f.vunit)}</Text>
-          <Text style={[styles.itemsCell, { width: "16%", textAlign: "right", fontWeight: 700 }]}>{money(f.vtotal)}</Text>
+      <TablaInfo izquierda={izquierda} derecha={derecha} />
+
+      <View style={{ marginTop: 12 }}>
+        <View style={styles.itemsHeaderRow}>
+          <Text style={[styles.itemsHeaderCell, { width: "6%" }]}>ÍTEM</Text>
+          {incluirCodigo && <Text style={[styles.itemsHeaderCell, { width: "9%" }]}>CÓDIGO</Text>}
+          <Text style={[styles.itemsHeaderCell, { width: colDescPct }]}>DESCRIPCIÓN</Text>
+          <Text style={[styles.itemsHeaderCell, { width: "7%" }]}>CANT.</Text>
+          <Text style={[styles.itemsHeaderCell, { width: "7%" }]}>U.M.</Text>
+          <Text style={[styles.itemsHeaderCell, { width: "10%" }]}>ENTREGA</Text>
+          <Text style={[styles.itemsHeaderCell, { width: "15%", textAlign: "right" }]}>V. UNIT. ({monedaSym})</Text>
+          <Text style={[styles.itemsHeaderCell, { width: "16%", textAlign: "right" }]}>IMPORTE ({monedaSym})</Text>
         </View>
-      ))}
+        {filasItems.map((f) => (
+          <View key={f.idx} style={styles.itemsRow} wrap={false}>
+            <Text style={[styles.itemsCell, { width: "6%", textAlign: "center" }]}>{f.idx + 1}</Text>
+            {incluirCodigo && <Text style={[styles.itemsCell, { width: "9%", textAlign: "center" }]}>{f.codigo}</Text>}
+            <Text style={[styles.itemsCell, { width: colDescPct }]}>{f.descripcion}</Text>
+            <Text style={[styles.itemsCell, { width: "7%", textAlign: "center" }]}>{f.cant}</Text>
+            <Text style={[styles.itemsCell, { width: "7%", textAlign: "center" }]}>{f.um}</Text>
+            <Text style={[styles.itemsCell, { width: "10%", textAlign: "center", fontSize: 7.5 }]}>{f.entrega}</Text>
+            <Text style={[styles.itemsCell, { width: "15%", textAlign: "right" }]}>{money(f.vunit)}</Text>
+            <Text style={[styles.itemsCell, { width: "16%", textAlign: "right", fontWeight: 700 }]}>{money(f.vtotal)}</Text>
+          </View>
+        ))}
+      </View>
 
       <View style={styles.totalsWrap}>
         <View style={styles.totalsBox}>
           {etiquetas.map(([label, val, destacado], i) => (
             <View key={i} style={destacado ? styles.totalRowDestacado : styles.totalRow}>
               <Text style={[styles.totalLabel, destacado ? { color: "#FFFFFF" } : {}]}>{label}</Text>
-              <Text style={[styles.totalValue, { width: "45%" }, destacado ? { color: "#FFFFFF", fontWeight: 700 } : {}]}>
+              <Text style={[styles.totalValue, { width: "50%" }, destacado ? { color: "#FFFFFF", fontWeight: 700 } : {}]}>
                 {monedaSym} {money(val)}
               </Text>
             </View>
@@ -211,91 +211,96 @@ function OrdenDocumento({ data, logoDataUri }: { data: OrdenCompraData; logoData
         </View>
       </View>
 
-      <Text style={styles.sonPara}>SON: {son}.</Text>
+      <Text style={styles.sonPara}>
+        <Text style={styles.sonLabel}>SON: </Text>
+        {son}.
+      </Text>
 
-      <View style={styles.boxedWrap} wrap={false}>
-        <View style={styles.boxedCell}>
-          <Text style={styles.boxedTitle}>02 / DATOS BANCARIOS</Text>
-          {cuentas.length === 0 && <Text style={styles.boxedLine}>(Pendiente de proporcionar por el proveedor)</Text>}
-          {cuentas.map((c, i) => (
-            <Text key={i} style={styles.boxedLine}>
-              {c.banco}: {c.cuenta}
-              {c.cci ? ` | CCI: ${c.cci}` : ""}
-            </Text>
-          ))}
-          {prov.detraccion && (
-            <Text style={styles.boxedLine}>
-              <Text style={styles.labelBold}>Detracción: </Text>
-              {prov.detraccion}
-            </Text>
-          )}
-        </View>
-        <View style={styles.boxedCell}>
-          <Text style={styles.boxedTitle}>03 / CONDICIONES Y ENTREGA</Text>
-          {data.forma_pago && (
-            <Text style={styles.boxedLine}>
-              <Text style={styles.labelBold}>Forma de pago: </Text>
-              {data.forma_pago}
-            </Text>
-          )}
-          {(data.origen || data.destino || data.lugar_entrega) && (
-            <Text style={styles.boxedLine}>
-              Origen: {data.origen || ""}  |  Destino: {data.destino || data.lugar_entrega || ""}
-            </Text>
-          )}
-          <Text style={[styles.boxedLine, styles.labelBold]}>FACTURACIÓN Y CAMBIOS</Text>
-          <Text style={styles.boxedLine}>
-            Toda comunicación relacionada con facturación y cambios deberá enviarse a: administracion@gtoperu.com
-          </Text>
-        </View>
-      </View>
+      <SectionBar texto="CONDICIONES COMERCIALES" />
+      {data.forma_pago && (
+        <Text style={styles.bodyLine}>
+          <Text style={styles.labelBold}>Forma de pago: </Text>
+          {data.forma_pago}
+        </Text>
+      )}
+      {(data.lugar_entrega || data.origen || data.destino) && (
+        <Text style={styles.bodyLine}>
+          <Text style={styles.labelBold}>Lugar de recojo y entrega: </Text>
+          {data.lugar_entrega || `${data.origen || ""} → ${data.destino || ""}`}
+        </Text>
+      )}
+      <Text style={styles.bodyLine}>
+        <Text style={styles.labelBold}>Plazo de entrega: </Text>
+        {data.fecha_entrega || "Por coordinar con el proveedor."}
+      </Text>
+      {data.garantia && (
+        <Text style={styles.bodyLine}>
+          <Text style={styles.labelBold}>Garantía: </Text>
+          {data.garantia}
+        </Text>
+      )}
+      {data.penalidad && (
+        <Text style={styles.bodyLine}>
+          <Text style={styles.labelBold}>Penalidad por retraso en la entrega: </Text>
+          {data.penalidad}
+        </Text>
+      )}
 
-      {hay04 && (
-        <View>
-          <Text style={styles.sectionTitle}>04 / OBSERVACIONES</Text>
+      <SectionBar texto="CUENTAS BANCARIAS" />
+      {cuentas.length === 0 && <Text style={styles.bodyLine}>(Pendiente de proporcionar por el proveedor)</Text>}
+      {cuentas.map((c, i) => (
+        <Text key={i} style={styles.bodyLine}>
+          {c.banco}: {c.cuenta}
+          {c.cci ? `  |  CCI: ${c.cci}` : ""}
+        </Text>
+      ))}
+      {prov.detraccion && (
+        <Text style={styles.bodyLine}>
+          <Text style={styles.labelBold}>Detracción: </Text>
+          {prov.detraccion}
+        </Text>
+      )}
+
+      {hayObservaciones && (
+        <>
+          <SectionBar texto="OBSERVACIONES" />
           {condicionesExtra.map((linea, i) => (
-            <Text key={i} style={styles.obsLine}>
+            <Text key={i} style={styles.bodyLine}>
               {linea}
             </Text>
           ))}
-          {data.observaciones && <Text style={[styles.obsLine, { marginBottom: 6 }]}>{data.observaciones}</Text>}
-          {data.garantia && (
-            <Text style={styles.obsLine}>
-              <Text style={styles.labelBold}>Garantía: </Text>
-              {data.garantia}
-            </Text>
-          )}
-          {data.penalidad && (
-            <Text style={styles.obsLine}>
-              <Text style={styles.labelBold}>Penalidad por retraso en la entrega: </Text>
-              {data.penalidad}
-            </Text>
-          )}
+          {observaciones && <Text style={styles.bodyLine}>{observaciones}</Text>}
           <Text style={styles.legalBlock}>
-            <Text style={styles.labelBold}>ACEPTACIÓN DE LA ORDEN: </Text>
-            El proveedor deberá confirmar la recepción y aceptación de la OC {numeroTxt} dentro de un plazo máximo de dos (2) días
+            <Text style={styles.labelBold}>Aceptación de la orden: </Text>
+            El proveedor deberá confirmar la recepción y aceptación de esta OC dentro de un plazo máximo de dos (2) días
             calendario contados desde su envío. Si no comunica observaciones o rechazo dentro de dicho plazo, la orden se
             considerará aceptada tácitamente.
           </Text>
           <Text style={styles.legalBlock}>
-            <Text style={styles.labelBold}>DOCUMENTOS PARA FACTURACIÓN: </Text>
-            Consignar la OC {numeroTxt} y adjuntar factura, guía de remisión o constancia del servicio y conformidad, cuando
-            corresponda.
+            <Text style={styles.labelBold}>Documentos para facturación: </Text>
+            Consignar el número de esta OC y adjuntar factura, guía de remisión o constancia del servicio y conformidad,
+            cuando corresponda.
           </Text>
           {data.incluir_anticorrupcion !== false && (
             <Text style={styles.legalBlock}>
-              <Text style={styles.labelBold}>CUMPLIMIENTO: </Text>
+              <Text style={styles.labelBold}>Cumplimiento: </Text>
               El proveedor declara conocer y cumplir la legislación peruana e internacional en materia anticorrupción y
               antisoborno, absteniéndose de ofrecer o entregar cualquier beneficio indebido en el marco de esta orden.
             </Text>
           )}
-        </View>
+        </>
       )}
+
+      <SectionBar texto="COMUNICACIÓN" />
+      <Text style={styles.bodyLine}>
+        Toda comunicación relacionada con facturación y cambios deberá enviarse a:{" "}
+        <Text style={styles.labelBold}>{EMPRESA.correos.split(" | ")[1] || EMPRESA.correos.split(" | ")[0]}</Text>
+      </Text>
 
       <Text
         style={styles.footer}
         render={({ pageNumber, totalPages }) =>
-          `${EMPRESA.direccionCorta}  |  ${EMPRESA.whatsapp}  |  ${EMPRESA.correos.split(" | ")[0]}  |  ${EMPRESA.web}  |  Página ${pageNumber} de ${totalPages}`
+          `${EMPRESA.nombreComercial}   |   R.U.C. ${EMPRESA.ruc}   |   ${EMPRESA.web}   |   Página ${pageNumber} de ${totalPages}`
         }
         fixed
       />
@@ -305,7 +310,7 @@ function OrdenDocumento({ data, logoDataUri }: { data: OrdenCompraData; logoData
 
 export async function generarOrdenPdf(data: OrdenCompraData): Promise<Buffer> {
   const fs = await import("node:fs");
-  const logoPath = path.join(process.cwd(), "assets", "gto_logo.png");
+  const logoPath = path.join(process.cwd(), "public", "logo-gto.png");
   let logoDataUri: string | null = null;
   if (fs.existsSync(logoPath)) {
     const b64 = fs.readFileSync(logoPath).toString("base64");
