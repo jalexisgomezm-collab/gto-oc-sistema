@@ -39,6 +39,13 @@ interface InicialOrden {
   items: ItemForm[];
 }
 
+interface ResultadoBusqueda {
+  id: string;
+  numero: number;
+  fecha_emision: string;
+  proveedores?: { razon_social: string; ruc: string } | null;
+}
+
 const itemVacio: ItemForm = { cantidad: "1", um: "UND", codigo: "", descripcion: "", entrega: "", valor_unitario: "" };
 
 export default function NuevaOrdenForm({
@@ -71,6 +78,68 @@ export default function NuevaOrdenForm({
   const [items, setItems] = useState<ItemForm[]>(inicial?.items && inicial.items.length > 0 ? inicial.items : [{ ...itemVacio }]);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // ------------------------------------------- cargar orden anterior como plantilla
+  const [busqueda, setBusqueda] = useState("");
+  const [resultados, setResultados] = useState<ResultadoBusqueda[]>([]);
+  const [buscando, setBuscando] = useState(false);
+  const [cargandoPlantilla, setCargandoPlantilla] = useState(false);
+  const [mensajePlantilla, setMensajePlantilla] = useState<string | null>(null);
+
+  async function buscarOrdenes() {
+    if (!busqueda.trim()) return;
+    setBuscando(true);
+    setMensajePlantilla(null);
+    try {
+      const res = await fetch(`/api/ordenes/plantilla?q=${encodeURIComponent(busqueda.trim())}`);
+      const data = await res.json();
+      setResultados(data.resultados || []);
+      if (!data.resultados || data.resultados.length === 0) {
+        setMensajePlantilla("No se encontraron órdenes con esa búsqueda.");
+      }
+    } catch {
+      setMensajePlantilla("No se pudo buscar. Intenta de nuevo.");
+    } finally {
+      setBuscando(false);
+    }
+  }
+
+  async function usarPlantilla(idOrdenPlantilla: string) {
+    setCargandoPlantilla(true);
+    setMensajePlantilla(null);
+    try {
+      const res = await fetch(`/api/ordenes/plantilla?id=${idOrdenPlantilla}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "No se pudo cargar la orden");
+
+      const p = data.plantilla;
+      setProveedorId(p.proveedor_id || "");
+      setMoneda(p.moneda || "SOLES");
+      setFormaPago(p.forma_pago || "");
+      setLugarEntrega(p.lugar_entrega || "");
+      setOrigen(p.origen || "");
+      setDestino(p.destino || "");
+      setFechaEntrega(p.fecha_entrega || "");
+      setCentroCostos(p.centro_costos || "");
+      setDocRelacionado(p.doc_relacionado || "");
+      setComprador(p.comprador || "");
+      setGarantia(p.garantia || "");
+      setPenalidad(p.penalidad || "");
+      setCondicionesEspeciales(p.condiciones_especiales || "");
+      setObservaciones(p.observaciones || "");
+      setIncluirAnticorrupcion(p.incluir_anticorrupcion ?? true);
+      setDescuento(p.descuento || "");
+      if (p.items && p.items.length > 0) setItems(p.items);
+
+      setResultados([]);
+      setBusqueda("");
+      setMensajePlantilla(`Se cargaron los datos de la OC ${data.numero} como plantilla. Revisa y ajusta antes de emitir.`);
+    } catch (err: any) {
+      setMensajePlantilla(err.message || "No se pudo cargar la orden");
+    } finally {
+      setCargandoPlantilla(false);
+    }
+  }
 
   function actualizarItem(idx: number, campo: keyof ItemForm, valor: string) {
     setItems((prev) => {
@@ -153,6 +222,56 @@ export default function NuevaOrdenForm({
 
   return (
     <form onSubmit={enviar} className="space-y-8 max-w-4xl pb-16">
+      {!ordenId && (
+        <section className="bg-white border border-gray-200 rounded-lg p-6 space-y-3">
+          <h2 className="text-sm font-semibold text-verde">Volver a generar</h2>
+          <p className="text-xs text-gray-500">
+            Busca una orden anterior por proveedor, RUC o número, y úsala como plantilla: se copian el proveedor, las
+            condiciones y los ítems (puedes editarlo todo antes de emitir).
+          </p>
+          <div className="flex gap-2">
+            <input
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  buscarOrdenes();
+                }
+              }}
+              placeholder="Ej: proveedor, RUC o N.° de orden..."
+              className="flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm"
+            />
+            <button
+              type="button"
+              onClick={buscarOrdenes}
+              disabled={buscando}
+              className="border border-gray-300 rounded-md px-4 py-2 text-sm hover:bg-gray-50 disabled:opacity-60"
+            >
+              {buscando ? "Buscando..." : "Buscar"}
+            </button>
+          </div>
+          {resultados.length > 0 && (
+            <ul className="border border-gray-200 rounded-md divide-y divide-gray-100">
+              {resultados.map((r) => (
+                <li key={r.id}>
+                  <button
+                    type="button"
+                    onClick={() => usarPlantilla(r.id)}
+                    disabled={cargandoPlantilla}
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 disabled:opacity-60"
+                  >
+                    <span className="font-medium">OC {r.numero}</span> — {r.proveedores?.razon_social || "—"} (
+                    {r.proveedores?.ruc || "—"}) · {r.fecha_emision}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {mensajePlantilla && <p className="text-xs text-verde">{mensajePlantilla}</p>}
+        </section>
+      )}
+
       <section className="bg-white border border-gray-200 rounded-lg p-6 space-y-4">
         <h2 className="text-sm font-semibold text-verde">Datos generales</h2>
         <div className="grid grid-cols-3 gap-4">
