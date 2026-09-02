@@ -14,7 +14,10 @@ export default function CerrarSesionBoton() {
   }
 
   return (
-    <button onClick={cerrarSesion} className="hover:text-verde underline underline-offset-2">
+    <button
+      onClick={cerrarSesion}
+      className="w-full border border-gray-300 rounded-md text-sm text-gray-600 py-2 hover:bg-gray-50"
+    >
       Cerrar sesión
     </button>
   );
