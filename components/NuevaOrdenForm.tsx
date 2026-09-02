@@ -18,28 +18,57 @@ interface ItemForm {
   valor_unitario: string;
 }
 
+interface InicialOrden {
+  proveedor_id: string;
+  fecha_emision: string;
+  moneda: "SOLES" | "DOLARES";
+  forma_pago: string;
+  lugar_entrega: string;
+  origen: string;
+  destino: string;
+  fecha_entrega: string;
+  centro_costos: string;
+  doc_relacionado: string;
+  comprador: string;
+  garantia: string;
+  penalidad: string;
+  condiciones_especiales: string;
+  observaciones: string;
+  incluir_anticorrupcion: boolean;
+  descuento: string;
+  items: ItemForm[];
+}
+
 const itemVacio: ItemForm = { cantidad: "1", um: "UND", codigo: "", descripcion: "", entrega: "", valor_unitario: "" };
 
-export default function NuevaOrdenForm({ proveedores }: { proveedores: ProveedorOpcion[] }) {
+export default function NuevaOrdenForm({
+  proveedores,
+  ordenId,
+  inicial
+}: {
+  proveedores: ProveedorOpcion[];
+  ordenId?: string;
+  inicial?: InicialOrden;
+}) {
   const router = useRouter();
-  const [proveedorId, setProveedorId] = useState("");
-  const [fechaEmision, setFechaEmision] = useState(new Date().toISOString().slice(0, 10));
-  const [moneda, setMoneda] = useState<"SOLES" | "DOLARES">("SOLES");
-  const [formaPago, setFormaPago] = useState("");
-  const [lugarEntrega, setLugarEntrega] = useState("");
-  const [origen, setOrigen] = useState("");
-  const [destino, setDestino] = useState("");
-  const [fechaEntrega, setFechaEntrega] = useState("");
-  const [centroCostos, setCentroCostos] = useState("");
-  const [docRelacionado, setDocRelacionado] = useState("");
-  const [comprador, setComprador] = useState("");
-  const [garantia, setGarantia] = useState("");
-  const [penalidad, setPenalidad] = useState("");
-  const [observaciones, setObservaciones] = useState("");
-  const [incluirAnticorrupcion, setIncluirAnticorrupcion] = useState(true);
-  const [condicionesEspeciales, setCondicionesEspeciales] = useState("");
-  const [descuento, setDescuento] = useState("");
-  const [items, setItems] = useState<ItemForm[]>([{ ...itemVacio }]);
+  const [proveedorId, setProveedorId] = useState(inicial?.proveedor_id || "");
+  const [fechaEmision, setFechaEmision] = useState(inicial?.fecha_emision || new Date().toISOString().slice(0, 10));
+  const [moneda, setMoneda] = useState<"SOLES" | "DOLARES">(inicial?.moneda || "SOLES");
+  const [formaPago, setFormaPago] = useState(inicial?.forma_pago || "");
+  const [lugarEntrega, setLugarEntrega] = useState(inicial?.lugar_entrega || "");
+  const [origen, setOrigen] = useState(inicial?.origen || "");
+  const [destino, setDestino] = useState(inicial?.destino || "");
+  const [fechaEntrega, setFechaEntrega] = useState(inicial?.fecha_entrega || "");
+  const [centroCostos, setCentroCostos] = useState(inicial?.centro_costos || "");
+  const [docRelacionado, setDocRelacionado] = useState(inicial?.doc_relacionado || "");
+  const [comprador, setComprador] = useState(inicial?.comprador || "");
+  const [garantia, setGarantia] = useState(inicial?.garantia || "");
+  const [penalidad, setPenalidad] = useState(inicial?.penalidad || "");
+  const [observaciones, setObservaciones] = useState(inicial?.observaciones || "");
+  const [incluirAnticorrupcion, setIncluirAnticorrupcion] = useState(inicial?.incluir_anticorrupcion ?? true);
+  const [condicionesEspeciales, setCondicionesEspeciales] = useState(inicial?.condiciones_especiales || "");
+  const [descuento, setDescuento] = useState(inicial?.descuento || "");
+  const [items, setItems] = useState<ItemForm[]>(inicial?.items && inicial.items.length > 0 ? inicial.items : [{ ...itemVacio }]);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -76,8 +105,10 @@ export default function NuevaOrdenForm({ proveedores }: { proveedores: Proveedor
 
     setCargando(true);
     try {
-      const res = await fetch("/api/ordenes", {
-        method: "POST",
+      const url = ordenId ? `/api/ordenes/${ordenId}` : "/api/ordenes";
+      const method = ordenId ? "PUT" : "POST";
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           proveedor_id: proveedorId,
@@ -110,7 +141,7 @@ export default function NuevaOrdenForm({ proveedores }: { proveedores: Proveedor
         })
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "No se pudo crear la orden");
+      if (!res.ok) throw new Error(data.error || "No se pudo guardar la orden");
       router.push(`/ordenes/${data.id}`);
       router.refresh();
     } catch (err: any) {
@@ -237,7 +268,7 @@ export default function NuevaOrdenForm({ proveedores }: { proveedores: Proveedor
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <button type="submit" disabled={cargando} className="bg-verde text-white text-sm font-medium px-6 py-2.5 rounded-md hover:bg-verde-oscuro disabled:opacity-60">
-        {cargando ? "Generando orden..." : "Emitir orden de compra"}
+        {cargando ? (ordenId ? "Actualizando..." : "Generando orden...") : ordenId ? "Actualizar orden" : "Emitir orden de compra"}
       </button>
     </form>
   );
