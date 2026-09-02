@@ -1,57 +1,79 @@
-import { notFound } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import NuevaOrdenForm from "@/components/NuevaOrdenForm";
 
-export default async function EditarOrdenPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+const money = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+export default async function OrdenesPage() {
   const supabase = await createClient();
-
-  const { data: orden } = await supabase
+  const { data: ordenes } = await supabase
     .from("ordenes_compra")
-    .select("*, orden_items(*)")
-    .eq("id", id)
-    .single();
-  if (!orden) notFound();
-
-  const { data: proveedores } = await supabase
-    .from("proveedores")
-    .select("id, razon_social, ruc")
-    .order("razon_social", { ascending: true });
-
-  const items = (orden.orden_items || []).sort((a: any, b: any) => a.posicion - b.posicion);
-
-  const inicial = {
-    proveedor_id: orden.proveedor_id,
-    fecha_emision: orden.fecha_emision,
-    moneda: orden.moneda,
-    forma_pago: orden.forma_pago || "",
-    lugar_entrega: orden.lugar_entrega || "",
-    origen: orden.origen || "",
-    destino: orden.destino || "",
-    fecha_entrega: orden.fecha_entrega || "",
-    centro_costos: orden.centro_costos || "",
-    doc_relacionado: orden.doc_relacionado || "",
-    comprador: orden.comprador || "",
-    garantia: orden.garantia || "",
-    penalidad: orden.penalidad || "",
-    condiciones_especiales: (orden.condiciones_especiales || []).join("\n"),
-    observaciones: orden.observaciones || "",
-    incluir_anticorrupcion: orden.incluir_anticorrupcion !== false,
-    descuento: orden.descuento ? String(orden.descuento) : "",
-    items: items.map((it: any) => ({
-      cantidad: String(it.cantidad),
-      um: it.um || "UND",
-      codigo: it.codigo || "",
-      descripcion: it.descripcion,
-      entrega: it.entrega || "",
-      valor_unitario: String(it.valor_unitario)
-    }))
-  };
+    .select("id, numero, fecha_emision, moneda, total, estado, proveedores(razon_social)")
+    .order("numero", { ascending: false });
 
   return (
     <div>
-      <h1 className="text-xl font-semibold mb-6">Editar orden N.º {orden.numero}</h1>
-      <NuevaOrdenForm proveedores={proveedores || []} ordenId={id} inicial={inicial} />
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-xl font-semibold">Órdenes de compra</h1>
+        <Link href="/ordenes/nueva" className="bg-verde text-white text-sm font-medium px-4 py-2 rounded-md hover:bg-verde-oscuro">
+          + Nueva orden
+        </Link>
+      </div>
+
+      <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
+            <tr>
+              <th className="text-left px-4 py-2">N.º OC</th>
+              <th className="text-left px-4 py-2">Proveedor</th>
+              <th className="text-left px-4 py-2">Fecha</th>
+              <th className="text-right px-4 py-2">Total</th>
+              <th className="text-left px-4 py-2">Estado</th>
+              <th className="text-right px-4 py-2">Archivos</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {(ordenes || []).map((o: any) => (
+              <tr key={o.id}>
+                <td className="px-4 py-2 font-medium">{o.numero}</td>
+                <td className="px-4 py-2">{o.proveedores?.razon_social}</td>
+                <td className="px-4 py-2 text-gray-600">{o.fecha_emision}</td>
+                <td className="px-4 py-2 text-right">
+                  {o.moneda === "DOLARES" ? "US$" : "S/"} {money(Number(o.total))}
+                </td>
+                <td className="px-4 py-2">
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${o.estado === "emitida" ? "bg-verde-claro text-verde-oscuro" : "bg-gray-100 text-gray-500"}`}>
+                    {o.estado}
+                  </span>
+                </td>
+                <td className="px-4 py-2 text-right whitespace-nowrap">
+                  <a href={`/api/ordenes/${o.id}/docx`} className="text-verde hover:underline text-sm mr-3">
+                    Word
+                  </a>
+                  <a href={`/api/ordenes/${o.id}/pdf`} className="text-verde hover:underline text-sm">
+                    PDF
+                  </a>
+                </td>
+                <td className="px-4 py-2 text-right whitespace-nowrap">
+                  <Link href={`/ordenes/${o.id}`} className="text-verde hover:underline text-sm mr-3">
+                    Ver
+                  </Link>
+                  <Link href={`/ordenes/${o.id}/editar`} className="text-verde hover:underline text-sm">
+                    Editar
+                  </Link>
+                </td>
+              </tr>
+            ))}
+            {(!ordenes || ordenes.length === 0) && (
+              <tr>
+                <td colSpan={7} className="px-4 py-8 text-center text-gray-400">
+                  Aún no se han emitido órdenes de compra.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
