@@ -1,5 +1,6 @@
 export const EMPRESA = {
   nombreLegal: "GTO PERU SOCIEDAD ANÓNIMA CERRADA",
+  nombreComercial: "GTO Electrónica y Eléctrico de Potencia",
   ruc: "20519998786",
   domicilioFiscal:
     "CAL. GERMAN SCHEREIBER NRO. 276 INT. T301 URB. SANTA ANA (ENTRE CUADRA 1 Y 2 DE CANAVAL Y MOREYRA), SAN ISIDRO - LIMA - LIMA",
