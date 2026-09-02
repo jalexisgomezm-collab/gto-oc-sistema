@@ -28,6 +28,7 @@ export default async function OrdenesPage() {
               <th className="text-left px-4 py-2">Fecha</th>
               <th className="text-right px-4 py-2">Total</th>
               <th className="text-left px-4 py-2">Estado</th>
+              <th className="text-right px-4 py-2">Archivos</th>
               <th></th>
             </tr>
           </thead>
@@ -45,16 +46,27 @@ export default async function OrdenesPage() {
                     {o.estado}
                   </span>
                 </td>
-                <td className="px-4 py-2 text-right">
-                  <Link href={`/ordenes/${o.id}`} className="text-verde hover:underline text-sm">
+                <td className="px-4 py-2 text-right whitespace-nowrap">
+                  <a href={`/api/ordenes/${o.id}/docx`} className="text-verde hover:underline text-sm mr-3">
+                    Word
+                  </a>
+                  <a href={`/api/ordenes/${o.id}/pdf`} className="text-verde hover:underline text-sm">
+                    PDF
+                  </a>
+                </td>
+                <td className="px-4 py-2 text-right whitespace-nowrap">
+                  <Link href={`/ordenes/${o.id}`} className="text-verde hover:underline text-sm mr-3">
                     Ver
+                  </Link>
+                  <Link href={`/ordenes/${o.id}/editar`} className="text-verde hover:underline text-sm">
+                    Editar
                   </Link>
                 </td>
               </tr>
             ))}
             {(!ordenes || ordenes.length === 0) && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
+                <td colSpan={7} className="px-4 py-8 text-center text-gray-400">
                   Aún no se han emitido órdenes de compra.
                 </td>
               </tr>
