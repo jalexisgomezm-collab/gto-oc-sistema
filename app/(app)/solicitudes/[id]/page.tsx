@@ -22,7 +22,7 @@ export default async function SolicitudDetallePage({ params }: { params: Promise
 
   const { data: solicitud } = await supabase
     .from("solicitudes_pedido")
-    .select("*, solicitud_items(*)")
+    .select("*, solicitud_items(*, solicitud_item_adjuntos(*))")
     .eq("id", id)
     .single();
 
@@ -72,36 +72,51 @@ export default async function SolicitudDetallePage({ params }: { params: Promise
         )}
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
-            <tr>
-              <th className="text-left px-4 py-2">#</th>
-              <th className="text-left px-4 py-2">Producto</th>
-              <th className="text-left px-4 py-2">Cantidad</th>
-              <th className="text-left px-4 py-2">U.M.</th>
-              <th className="text-left px-4 py-2">Observación</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {items.map((it: any, idx: number) => (
-              <tr key={it.id}>
-                <td className="px-4 py-2 text-gray-500">{idx + 1}</td>
-                <td className="px-4 py-2">{it.descripcion}</td>
-                <td className="px-4 py-2">{it.cantidad}</td>
-                <td className="px-4 py-2">{it.um}</td>
-                <td className="px-4 py-2 text-gray-600">{it.observacion || "—"}</td>
-              </tr>
-            ))}
-            {items.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-gray-400">
-                  Esta solicitud no tiene ítems.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+      <div className="space-y-3">
+        {items.map((it: any, idx: number) => {
+          const adjuntos = it.solicitud_item_adjuntos || [];
+          return (
+            <div key={it.id} className="bg-white border border-gray-200 rounded-lg p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium">
+                    {idx + 1}. {it.descripcion}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Cantidad: {it.cantidad} {it.um}
+                    {it.observacion ? ` · ${it.observacion}` : ""}
+                  </p>
+                </div>
+              </div>
+              {adjuntos.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {adjuntos.map((a: any) =>
+                    a.tipo === "imagen" ? (
+                      <a key={a.id} href={a.url} target="_blank" rel="noreferrer">
+                        <img src={a.url} alt={a.nombre || ""} className="w-16 h-16 object-cover rounded-md border border-gray-200" />
+                      </a>
+                    ) : (
+                      <a
+                        key={a.id}
+                        href={a.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs text-verde hover:underline bg-verde-claro px-2 py-1 rounded-md max-w-xs truncate"
+                      >
+                        {a.nombre || a.url}
+                      </a>
+                    )
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {items.length === 0 && (
+          <div className="bg-white border border-gray-200 rounded-lg p-8 text-center text-gray-400">
+            Esta solicitud no tiene ítems.
+          </div>
+        )}
       </div>
     </div>
   );
