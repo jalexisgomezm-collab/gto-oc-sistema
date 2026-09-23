@@ -124,8 +124,32 @@ export async function POST(req: NextRequest) {
         observacion: it.observacion || null
       });
     }
-    const { error: errItems } = await supabase.from("solicitud_items").insert(itemsParaInsertar);
+    const { data: itemsInsertados, error: errItems } = await supabase
+      .from("solicitud_items")
+      .insert(itemsParaInsertar)
+      .select("id, posicion");
     if (errItems) throw new Error(errItems.message);
+
+    const adjuntosParaInsertar: any[] = [];
+    (itemsInsertados || []).forEach((itemInsertado: any) => {
+      const posicion = itemInsertado.posicion;
+      const original = items[posicion - 1];
+      const adjuntos = Array.isArray(original?.adjuntos) ? original.adjuntos : [];
+      for (const a of adjuntos) {
+        if (!a?.url || !a?.tipo) continue;
+        adjuntosParaInsertar.push({
+          solicitud_item_id: itemInsertado.id,
+          tipo: a.tipo === "enlace" ? "enlace" : "imagen",
+          url: String(a.url).trim(),
+          nombre: a.nombre ? String(a.nombre).trim() : null
+        });
+      }
+    });
+
+    if (adjuntosParaInsertar.length > 0) {
+      const { error: errAdjuntos } = await supabase.from("solicitud_item_adjuntos").insert(adjuntosParaInsertar);
+      if (errAdjuntos) throw new Error(errAdjuntos.message);
+    }
   } catch (err: any) {
     return NextResponse.json(
       { error: `La solicitud se creó (N.º ${numero}) pero no se pudieron guardar los ítems: ${err.message}`, id: solicitud.id, numero },
