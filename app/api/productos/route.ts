@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
 
   let query = supabase
     .from("catalogo_productos")
-    .select("id, descripcion, um, codigo, activo")
+    .select("id, descripcion, um, codigo, activo, imagen_url")
     .order("descripcion", { ascending: true })
     .limit(soloActivos ? 20 : 500);
 
@@ -42,25 +42,29 @@ export async function POST(req: NextRequest) {
 
   const um = (body.um || "UND").trim() || "UND";
   const codigo = body.codigo ? String(body.codigo).trim() : null;
+  const imagenUrl = body.imagen_url ? String(body.imagen_url).trim() : null;
 
   // Ya existe un producto con esa descripción (sin importar mayúsculas/minúsculas): lo reutilizamos.
   const { data: existente } = await supabase
     .from("catalogo_productos")
-    .select("id, descripcion, um, codigo, activo")
+    .select("id, descripcion, um, codigo, activo, imagen_url")
     .ilike("descripcion", descripcion)
     .maybeSingle();
   if (existente) {
-    if (!existente.activo) {
-      await supabase.from("catalogo_productos").update({ activo: true }).eq("id", existente.id);
-      existente.activo = true;
+    const cambios: Record<string, any> = {};
+    if (!existente.activo) cambios.activo = true;
+    if (imagenUrl && !existente.imagen_url) cambios.imagen_url = imagenUrl;
+    if (Object.keys(cambios).length > 0) {
+      await supabase.from("catalogo_productos").update(cambios).eq("id", existente.id);
+      Object.assign(existente, cambios);
     }
     return NextResponse.json({ producto: existente });
   }
 
   const { data, error } = await supabase
     .from("catalogo_productos")
-    .insert({ descripcion, um, codigo, activo: true })
-    .select("id, descripcion, um, codigo, activo")
+    .insert({ descripcion, um, codigo, activo: true, imagen_url: imagenUrl })
+    .select("id, descripcion, um, codigo, activo, imagen_url")
     .single();
 
   if (error) {
@@ -68,7 +72,7 @@ export async function POST(req: NextRequest) {
     if ((error as any).code === "23505") {
       const { data: creadoAhora } = await supabase
         .from("catalogo_productos")
-        .select("id, descripcion, um, codigo, activo")
+        .select("id, descripcion, um, codigo, activo, imagen_url")
         .ilike("descripcion", descripcion)
         .maybeSingle();
       if (creadoAhora) return NextResponse.json({ producto: creadoAhora });
