@@ -18,12 +18,13 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const um = (body.um || "UND").trim() || "UND";
   const codigo = body.codigo ? String(body.codigo).trim() : null;
   const activo = body.activo !== false;
+  const imagenUrl = body.imagen_url ? String(body.imagen_url).trim() : null;
 
   const { data, error } = await supabase
     .from("catalogo_productos")
-    .update({ descripcion, um, codigo, activo, updated_at: new Date().toISOString() })
+    .update({ descripcion, um, codigo, activo, imagen_url: imagenUrl, updated_at: new Date().toISOString() })
     .eq("id", id)
-    .select("id, descripcion, um, codigo, activo")
+    .select("id, descripcion, um, codigo, activo, imagen_url")
     .single();
 
   if (error) {
