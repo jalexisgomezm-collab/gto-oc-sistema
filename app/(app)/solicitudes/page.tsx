@@ -15,11 +15,19 @@ const ESTADO_LABEL: Record<string, string> = {
   anulada: "Anulada"
 };
 
+const PRIORIDAD_ESTILO: Record<string, string> = {
+  ALTA: "bg-red-100 text-red-700",
+  MEDIA: "bg-yellow-100 text-yellow-700",
+  BAJA: "bg-gray-100 text-gray-500"
+};
+
+const PRIORIDAD_LABEL: Record<string, string> = { ALTA: "Alta", MEDIA: "Media", BAJA: "Baja" };
+
 export default async function SolicitudesPage() {
   const supabase = await createClient();
   const { data: solicitudes } = await supabase
     .from("solicitudes_pedido")
-    .select("id, numero, area, solicitante, fecha_solicitud, estado, solicitud_items(id)")
+    .select("id, numero, area, solicitante, fecha_solicitud, estado, prioridad, proyectos(nombre), solicitud_items(id)")
     .order("numero", { ascending: false });
 
   return (
@@ -38,7 +46,9 @@ export default async function SolicitudesPage() {
               <th className="text-left px-4 py-2">N.º</th>
               <th className="text-left px-4 py-2">Área</th>
               <th className="text-left px-4 py-2">Solicitante</th>
+              <th className="text-left px-4 py-2">Proyecto</th>
               <th className="text-left px-4 py-2">Fecha</th>
+              <th className="text-left px-4 py-2">Prioridad</th>
               <th className="text-left px-4 py-2">Ítems</th>
               <th className="text-left px-4 py-2">Estado</th>
               <th></th>
@@ -50,7 +60,13 @@ export default async function SolicitudesPage() {
                 <td className="px-4 py-2 font-medium">{s.numero}</td>
                 <td className="px-4 py-2">{AREA_LABEL[s.area] || s.area}</td>
                 <td className="px-4 py-2">{s.solicitante || "—"}</td>
+                <td className="px-4 py-2 text-gray-600">{s.proyectos?.nombre || "Abastecimiento"}</td>
                 <td className="px-4 py-2 text-gray-600">{s.fecha_solicitud}</td>
+                <td className="px-4 py-2">
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${PRIORIDAD_ESTILO[s.prioridad] || "bg-gray-100 text-gray-500"}`}>
+                    {PRIORIDAD_LABEL[s.prioridad] || s.prioridad}
+                  </span>
+                </td>
                 <td className="px-4 py-2">{(s.solicitud_items || []).length}</td>
                 <td className="px-4 py-2">
                   <span
@@ -70,7 +86,7 @@ export default async function SolicitudesPage() {
             ))}
             {(!solicitudes || solicitudes.length === 0) && (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-gray-400">
+                <td colSpan={9} className="px-4 py-8 text-center text-gray-400">
                   Aún no se han registrado solicitudes de pedido.
                 </td>
               </tr>
