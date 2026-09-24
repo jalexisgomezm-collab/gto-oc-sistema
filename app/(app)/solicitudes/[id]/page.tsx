@@ -16,19 +16,36 @@ const ESTADO_LABEL: Record<string, string> = {
   anulada: "Anulada"
 };
 
+const PRIORIDAD_ESTILO: Record<string, string> = {
+  ALTA: "bg-red-100 text-red-700",
+  MEDIA: "bg-yellow-100 text-yellow-700",
+  BAJA: "bg-gray-100 text-gray-500"
+};
+
+const PRIORIDAD_LABEL: Record<string, string> = { ALTA: "Alta", MEDIA: "Media", BAJA: "Baja" };
+
+const TIPO_LABEL: Record<string, string> = {
+  EVALUACION: "Evaluación",
+  REPARACION: "Reparación",
+  MANTENIMIENTO: "Mantenimiento",
+  VENTA: "Venta",
+  OTRO: "Otro"
+};
+
 export default async function SolicitudDetallePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
 
   const { data: solicitud } = await supabase
     .from("solicitudes_pedido")
-    .select("*, solicitud_items(*, solicitud_item_adjuntos(*))")
+    .select("*, proyectos(nombre, tipo, cliente, numero_oc_cliente, numero_orden_trabajo), solicitud_items(*, solicitud_item_adjuntos(*))")
     .eq("id", id)
     .single();
 
   if (!solicitud) notFound();
 
   const items = (solicitud.solicitud_items || []).sort((a: any, b: any) => a.posicion - b.posicion);
+  const proyecto = solicitud.proyectos;
 
   return (
     <div className="max-w-3xl">
@@ -54,6 +71,12 @@ export default async function SolicitudDetallePage({ params }: { params: Promise
             <p className="font-medium">{solicitud.fecha_solicitud}</p>
           </div>
           <div>
+            <p className="text-xs text-gray-500 mb-0.5">Prioridad</p>
+            <span className={`text-xs px-2 py-0.5 rounded-full ${PRIORIDAD_ESTILO[solicitud.prioridad] || "bg-gray-100 text-gray-500"}`}>
+              {PRIORIDAD_LABEL[solicitud.prioridad] || solicitud.prioridad}
+            </span>
+          </div>
+          <div>
             <p className="text-xs text-gray-500 mb-0.5">Estado</p>
             <span
               className={`text-xs px-2 py-0.5 rounded-full ${
@@ -62,6 +85,22 @@ export default async function SolicitudDetallePage({ params }: { params: Promise
             >
               {ESTADO_LABEL[solicitud.estado] || solicitud.estado}
             </span>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500 mb-0.5">Proyecto / orden de trabajo</p>
+            {proyecto ? (
+              <p className="font-medium">
+                {proyecto.nombre}{" "}
+                <span className="text-xs text-gray-400 font-normal">
+                  ({TIPO_LABEL[proyecto.tipo] || proyecto.tipo}
+                  {proyecto.cliente ? ` · ${proyecto.cliente}` : ""}
+                  {proyecto.numero_oc_cliente ? ` · OC ${proyecto.numero_oc_cliente}` : ""}
+                  {proyecto.numero_orden_trabajo ? ` · O.T. ${proyecto.numero_orden_trabajo}` : ""})
+                </span>
+              </p>
+            ) : (
+              <p className="font-medium text-gray-500">Abastecimiento general</p>
+            )}
           </div>
         </div>
         {solicitud.observaciones && (
