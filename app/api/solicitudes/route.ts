@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 export const runtime = "nodejs";
 
 const AREAS = ["LABORATORIO", "TALLER", "LOGISTICA", "ADMINISTRACION"];
+const PRIORIDADES = ["ALTA", "MEDIA", "BAJA"];
 
 export async function GET(req: NextRequest) {
   const supabase = await createClient();
@@ -17,7 +18,7 @@ export async function GET(req: NextRequest) {
 
   let query = supabase
     .from("solicitudes_pedido")
-    .select("id, numero, area, solicitante, fecha_solicitud, estado, solicitud_items(id)")
+    .select("id, numero, area, solicitante, fecha_solicitud, estado, prioridad, proyectos(nombre), solicitud_items(id)")
     .order("numero", { ascending: false });
 
   if (area && AREAS.includes(area)) query = query.eq("area", area);
@@ -32,6 +33,8 @@ export async function GET(req: NextRequest) {
     solicitante: s.solicitante,
     fecha_solicitud: s.fecha_solicitud,
     estado: s.estado,
+    prioridad: s.prioridad,
+    proyecto_nombre: s.proyectos?.nombre || null,
     total_items: (s.solicitud_items || []).length
   }));
 
@@ -75,7 +78,8 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
 
   const body = await req.json();
-  const { area, solicitante, fecha_solicitud, observaciones, items } = body;
+  const { area, solicitante, fecha_solicitud, observaciones, items, proyecto_id } = body;
+  const prioridad = PRIORIDADES.includes(body.prioridad) ? body.prioridad : "MEDIA";
 
   if (!area || !AREAS.includes(area)) {
     return NextResponse.json({ error: "Selecciona un área válida" }, { status: 400 });
@@ -99,6 +103,8 @@ export async function POST(req: NextRequest) {
       area,
       solicitante: solicitante || null,
       fecha_solicitud: fecha_solicitud || new Date().toISOString().slice(0, 10),
+      prioridad,
+      proyecto_id: proyecto_id || null,
       observaciones: observaciones || null,
       creado_por: user.id
     })
