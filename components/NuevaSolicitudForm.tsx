@@ -23,11 +23,24 @@ interface ItemSolicitud {
   enlaceNuevo: string;
 }
 
+interface ProyectoOpcion {
+  id: string;
+  nombre: string;
+  tipo: string;
+  cliente: string | null;
+}
+
 const AREAS = [
   { value: "LABORATORIO", label: "Laboratorio" },
   { value: "TALLER", label: "Taller" },
   { value: "LOGISTICA", label: "Logística" },
   { value: "ADMINISTRACION", label: "Administración" }
+];
+
+const PRIORIDADES = [
+  { value: "ALTA", label: "Alta" },
+  { value: "MEDIA", label: "Media" },
+  { value: "BAJA", label: "Baja" }
 ];
 
 const itemVacio: ItemSolicitud = {
@@ -58,10 +71,46 @@ export default function NuevaSolicitudForm() {
   const [area, setArea] = useState("");
   const [solicitante, setSolicitante] = useState("");
   const [fechaSolicitud, setFechaSolicitud] = useState(new Date().toISOString().slice(0, 10));
+  const [prioridad, setPrioridad] = useState("MEDIA");
   const [observaciones, setObservaciones] = useState("");
   const [items, setItems] = useState<ItemSolicitud[]>([{ ...itemVacio }]);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // ----------------------------------------------- proyecto / abastecimiento
+  const [perteneceProyecto, setPerteneceProyecto] = useState(false);
+  const [proyectoId, setProyectoId] = useState<string | null>(null);
+  const [proyectoNombreElegido, setProyectoNombreElegido] = useState("");
+  const [busquedaProyecto, setBusquedaProyecto] = useState("");
+  const [sugerenciasProyecto, setSugerenciasProyecto] = useState<ProyectoOpcion[]>([]);
+  const [mostrarSugerenciasProyecto, setMostrarSugerenciasProyecto] = useState(false);
+
+  async function buscarProyectos(texto: string) {
+    setBusquedaProyecto(texto);
+    setProyectoId(null);
+    setProyectoNombreElegido("");
+    if (texto.trim().length < 2) {
+      setSugerenciasProyecto([]);
+      setMostrarSugerenciasProyecto(false);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/proyectos?q=${encodeURIComponent(texto.trim())}`);
+      const data = await res.json();
+      setSugerenciasProyecto(data.proyectos || []);
+      setMostrarSugerenciasProyecto(true);
+    } catch {
+      // silencioso
+    }
+  }
+
+  function elegirProyecto(p: ProyectoOpcion) {
+    setProyectoId(p.id);
+    setProyectoNombreElegido(p.nombre);
+    setBusquedaProyecto(p.nombre);
+    setSugerenciasProyecto([]);
+    setMostrarSugerenciasProyecto(false);
+  }
 
   function actualizarItem(idx: number, cambios: Partial<ItemSolicitud>) {
     setItems((prev) => {
@@ -160,6 +209,10 @@ export default function NuevaSolicitudForm() {
       setError("Completa la descripción y la cantidad de todos los ítems");
       return;
     }
+    if (perteneceProyecto && !proyectoId) {
+      setError("Selecciona un proyecto de la lista, o marca esta solicitud como abastecimiento");
+      return;
+    }
 
     setCargando(true);
     try {
@@ -170,6 +223,8 @@ export default function NuevaSolicitudForm() {
           area,
           solicitante: solicitante || null,
           fecha_solicitud: fechaSolicitud,
+          prioridad,
+          proyecto_id: perteneceProyecto ? proyectoId : null,
           observaciones: observaciones || null,
           items: items.map((it) => ({
             producto_id: it.productoId,
@@ -196,7 +251,7 @@ export default function NuevaSolicitudForm() {
     <form onSubmit={enviar} className="space-y-8 max-w-4xl pb-16">
       <section className="bg-white border border-gray-200 rounded-lg p-6 space-y-4">
         <h2 className="text-sm font-semibold text-verde">Datos de la solicitud</h2>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-4 gap-4">
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Área que solicita</label>
             <select value={area} onChange={(e) => setArea(e.target.value)} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm">
@@ -226,6 +281,71 @@ export default function NuevaSolicitudForm() {
               className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
             />
           </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Prioridad</label>
+            <select
+              value={prioridad}
+              onChange={(e) => setPrioridad(e.target.value)}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+            >
+              {PRIORIDADES.map((p) => (
+                <option key={p.value} value={p.value}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="border-t border-gray-100 pt-4">
+          <p className="text-xs font-medium text-gray-600 mb-2">¿A qué corresponde este pedido?</p>
+          <div className="flex gap-4 mb-2">
+            <label className="flex items-center gap-2 text-sm text-gray-700">
+              <input type="radio" checked={!perteneceProyecto} onChange={() => setPerteneceProyecto(false)} />
+              Abastecimiento general (no está ligado a un proyecto)
+            </label>
+            <label className="flex items-center gap-2 text-sm text-gray-700">
+              <input type="radio" checked={perteneceProyecto} onChange={() => setPerteneceProyecto(true)} />
+              Proyecto / orden de trabajo
+            </label>
+          </div>
+          {perteneceProyecto && (
+            <div className="relative max-w-md">
+              <input
+                value={busquedaProyecto}
+                onChange={(e) => buscarProyectos(e.target.value)}
+                onFocus={() => sugerenciasProyecto.length > 0 && setMostrarSugerenciasProyecto(true)}
+                onBlur={() => setTimeout(() => setMostrarSugerenciasProyecto(false), 150)}
+                placeholder="Busca el proyecto por nombre..."
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+              />
+              {mostrarSugerenciasProyecto && sugerenciasProyecto.length > 0 && (
+                <ul className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-sm max-h-48 overflow-y-auto">
+                  {sugerenciasProyecto.map((p) => (
+                    <li key={p.id}>
+                      <button
+                        type="button"
+                        onMouseDown={() => elegirProyecto(p)}
+                        className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50"
+                      >
+                        {p.nombre} <span className="text-xs text-gray-400">({p.cliente || p.tipo})</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {proyectoId && <p className="text-xs text-verde mt-1">Enlazado a: {proyectoNombreElegido}</p>}
+              {!proyectoId && busquedaProyecto.trim().length >= 2 && (
+                <p className="text-xs text-gray-400 mt-1">
+                  Si no aparece, créalo primero en{" "}
+                  <a href="/proyectos" target="_blank" className="text-verde hover:underline">
+                    Proyectos
+                  </a>
+                  .
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </section>
 
