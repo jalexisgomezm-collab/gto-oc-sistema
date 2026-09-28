@@ -1,5 +1,6 @@
 "use client";
 
+import SelectorOT, { etiquetaOT } from "@/components/SelectorOT";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -81,36 +82,6 @@ export default function NuevaSolicitudForm() {
   const [perteneceProyecto, setPerteneceProyecto] = useState(false);
   const [proyectoId, setProyectoId] = useState<string | null>(null);
   const [proyectoNombreElegido, setProyectoNombreElegido] = useState("");
-  const [busquedaProyecto, setBusquedaProyecto] = useState("");
-  const [sugerenciasProyecto, setSugerenciasProyecto] = useState<ProyectoOpcion[]>([]);
-  const [mostrarSugerenciasProyecto, setMostrarSugerenciasProyecto] = useState(false);
-
-  async function buscarProyectos(texto: string) {
-    setBusquedaProyecto(texto);
-    setProyectoId(null);
-    setProyectoNombreElegido("");
-    if (texto.trim().length < 2) {
-      setSugerenciasProyecto([]);
-      setMostrarSugerenciasProyecto(false);
-      return;
-    }
-    try {
-      const res = await fetch(`/api/proyectos?q=${encodeURIComponent(texto.trim())}`);
-      const data = await res.json();
-      setSugerenciasProyecto(data.proyectos || []);
-      setMostrarSugerenciasProyecto(true);
-    } catch {
-      // silencioso
-    }
-  }
-
-  function elegirProyecto(p: ProyectoOpcion) {
-    setProyectoId(p.id);
-    setProyectoNombreElegido(p.nombre);
-    setBusquedaProyecto(p.nombre);
-    setSugerenciasProyecto([]);
-    setMostrarSugerenciasProyecto(false);
-  }
 
   function actualizarItem(idx: number, cambios: Partial<ItemSolicitud>) {
     setItems((prev) => {
@@ -310,36 +281,21 @@ export default function NuevaSolicitudForm() {
             </label>
           </div>
           {perteneceProyecto && (
-            <div className="relative max-w-md">
-              <input
-                value={busquedaProyecto}
-                onChange={(e) => buscarProyectos(e.target.value)}
-                onFocus={() => sugerenciasProyecto.length > 0 && setMostrarSugerenciasProyecto(true)}
-                onBlur={() => setTimeout(() => setMostrarSugerenciasProyecto(false), 150)}
-                placeholder="Busca el proyecto por nombre..."
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+            <div className="max-w-md">
+              <SelectorOT
+                valorId={proyectoId}
+                valorEtiqueta={proyectoNombreElegido}
+                onElegir={(p) => {
+                  setProyectoId(p ? p.id : null);
+                  setProyectoNombreElegido(p ? etiquetaOT(p) : "");
+                }}
               />
-              {mostrarSugerenciasProyecto && sugerenciasProyecto.length > 0 && (
-                <ul className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-sm max-h-48 overflow-y-auto">
-                  {sugerenciasProyecto.map((p) => (
-                    <li key={p.id}>
-                      <button
-                        type="button"
-                        onMouseDown={() => elegirProyecto(p)}
-                        className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50"
-                      >
-                        {p.nombre} <span className="text-xs text-gray-400">({p.cliente || p.tipo})</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
               {proyectoId && <p className="text-xs text-verde mt-1">Enlazado a: {proyectoNombreElegido}</p>}
-              {!proyectoId && busquedaProyecto.trim().length >= 2 && (
+              {!proyectoId && (
                 <p className="text-xs text-gray-400 mt-1">
-                  Si no aparece, créalo primero en{" "}
-                  <a href="/proyectos" target="_blank" className="text-verde hover:underline">
-                    Proyectos
+                  Elige la orden de trabajo de la lista. Si no aparece, regístrala primero en{" "}
+                  <a href="https://maestro-gestion-operaciones.vercel.app" target="_blank" className="text-verde hover:underline">
+                    el Maestro de Gestión
                   </a>
                   .
                 </p>

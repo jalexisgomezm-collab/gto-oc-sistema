@@ -8,7 +8,7 @@ export default async function DetalleOrdenPage({ params }: { params: Promise<{ i
   const supabase = await createClient();
   const { data: orden } = await supabase
     .from("ordenes_compra")
-    .select("*, proveedores(razon_social, ruc, contacto), orden_items(*)")
+    .select("*, proveedores(razon_social, ruc, contacto), orden_items(*), proyectos(nombre, cliente, numero_orden_trabajo)")
     .eq("id", id)
     .single();
   if (!orden) notFound();
@@ -45,6 +45,14 @@ export default async function DetalleOrdenPage({ params }: { params: Promise<{ i
           <Dato label="Lugar de entrega" valor={orden.lugar_entrega} />
           <Dato label="RUC proveedor" valor={orden.proveedores?.ruc} />
           <Dato label="Contacto" valor={orden.proveedores?.contacto} />
+          <Dato
+            label="Orden de trabajo"
+            valor={
+              orden.proyectos
+                ? [orden.proyectos.numero_orden_trabajo, orden.proyectos.nombre, orden.proyectos.cliente].filter(Boolean).join(" · ")
+                : null
+            }
+          />
         </div>
 
         <div>

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import SelectorOT, { etiquetaOT } from "@/components/SelectorOT";
 
 interface ProveedorOpcion {
   id: string;
@@ -37,6 +38,8 @@ interface InicialOrden {
   incluir_anticorrupcion: boolean;
   descuento: string;
   items: ItemForm[];
+  proyecto_id?: string | null;
+  proyecto_etiqueta?: string;
 }
 
 interface ResultadoBusqueda {
@@ -68,6 +71,8 @@ export default function NuevaOrdenForm({
   const [fechaEntrega, setFechaEntrega] = useState(inicial?.fecha_entrega || "");
   const [centroCostos, setCentroCostos] = useState(inicial?.centro_costos || "");
   const [docRelacionado, setDocRelacionado] = useState(inicial?.doc_relacionado || "");
+  const [proyectoId, setProyectoId] = useState<string | null>(inicial?.proyecto_id || null);
+  const [proyectoEtiqueta, setProyectoEtiqueta] = useState(inicial?.proyecto_etiqueta || "");
   const [comprador, setComprador] = useState(inicial?.comprador || "");
   const [garantia, setGarantia] = useState(inicial?.garantia || "");
   const [penalidad, setPenalidad] = useState(inicial?.penalidad || "");
@@ -190,6 +195,7 @@ export default function NuevaOrdenForm({
           fecha_entrega: fechaEntrega || null,
           centro_costos: centroCostos || null,
           doc_relacionado: docRelacionado || null,
+          proyecto_id: proyectoId,
           comprador: comprador || null,
           garantia: garantia || null,
           penalidad: penalidad || null,
@@ -306,6 +312,25 @@ export default function NuevaOrdenForm({
           <Campo label="Centro de costos" value={centroCostos} onChange={setCentroCostos} />
           <Campo label="Cotización / doc. relacionado" value={docRelacionado} onChange={setDocRelacionado} />
           <Campo label="Solicitante / comprador" value={comprador} onChange={setComprador} />
+          <div className="col-span-3">
+            <label className="block text-xs font-medium text-gray-600 mb-1">Orden de trabajo (opcional)</label>
+            <div className="max-w-xl">
+              <SelectorOT
+                valorId={proyectoId}
+                valorEtiqueta={proyectoEtiqueta}
+                onElegir={(p) => {
+                  setProyectoId(p ? p.id : null);
+                  setProyectoEtiqueta(p ? etiquetaOT(p) : "");
+                  if (p?.numero_orden_trabajo && !centroCostos.trim()) setCentroCostos(p.numero_orden_trabajo);
+                }}
+              />
+            </div>
+            <p className="text-xs text-gray-400 mt-1">
+              {proyectoId
+                ? `Enlazada a: ${proyectoEtiqueta}`
+                : "Elige la OT a la que corresponde esta compra; si el centro de costos está vacío se llena con el N° de OT."}
+            </p>
+          </div>
         </div>
       </section>
 

@@ -8,7 +8,7 @@ export default async function EditarOrdenPage({ params }: { params: Promise<{ id
 
   const { data: orden } = await supabase
     .from("ordenes_compra")
-    .select("*, orden_items(*)")
+    .select("*, orden_items(*), proyectos(nombre, cliente, numero_orden_trabajo)")
     .eq("id", id)
     .single();
 
@@ -49,6 +49,10 @@ export default async function EditarOrdenPage({ params }: { params: Promise<{ id
     observaciones: orden.observaciones || "",
     incluir_anticorrupcion: orden.incluir_anticorrupcion !== false,
     descuento: orden.descuento ? String(orden.descuento) : "",
+    proyecto_id: orden.proyecto_id || null,
+    proyecto_etiqueta: orden.proyectos
+      ? [orden.proyectos.numero_orden_trabajo, orden.proyectos.nombre, orden.proyectos.cliente].filter(Boolean).join(" · ")
+      : "",
     items:
       items.length > 0
         ? items

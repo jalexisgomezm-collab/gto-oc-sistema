@@ -21,7 +21,15 @@ export async function GET(req: NextRequest) {
     .limit(soloActivos ? 20 : 500);
 
   if (soloActivos) query = query.eq("estado", "activo");
-  if (q) query = query.ilike("nombre", `%${q.replace(/[%,]/g, "")}%`);
+  if (q) {
+    // Busca por nombre, N° de OT, cliente u OC del cliente
+    const t = q.replace(/[%,()*]/g, " ").trim();
+    if (t) {
+      query = query.or(
+        ["nombre", "numero_orden_trabajo", "cliente", "numero_oc_cliente"].map((c) => `${c}.ilike.*${t}*`).join(",")
+      );
+    }
+  }
 
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
