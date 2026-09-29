@@ -7,6 +7,29 @@ import { fechaHoraLima } from "@/lib/fechas";
 
 export const runtime = "nodejs";
 
+const MAX_FOTOS = 6; // por ítem
+const MAX_BYTES = 6 * 1024 * 1024;
+
+/** Descarga una foto de referencia (bucket público "adjuntos"). Solo PNG/JPG; otros formatos se omiten. */
+async function descargarImagen(url: string, nombre: string | null) {
+  try {
+    if (!/^https?:\/\//i.test(url)) return null;
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 8000);
+    const r = await fetch(url, { signal: ctrl.signal });
+    clearTimeout(t);
+    if (!r.ok) return null;
+    const buf = Buffer.from(await r.arrayBuffer());
+    if (buf.length > MAX_BYTES) return null;
+    const esPng = buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47;
+    const esJpg = buf[0] === 0xff && buf[1] === 0xd8;
+    if (!esPng && !esJpg) return null;
+    return { data: buf, format: (esPng ? "png" : "jpg") as "png" | "jpg", nombre: nombre || "foto" };
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
@@ -18,7 +41,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   // RLS: cada usuario solo obtiene las solicitudes que puede ver
   const { data: sol } = await supabase
     .from("solicitudes_pedido")
-    .select("*, proyectos(nombre, cliente, numero_orden_trabajo, numero_oc_cliente), solicitud_items(*, solicitud_item_adjuntos(id))")
+    .select("*, proyectos(nombre, cliente, numero_orden_trabajo, numero_oc_cliente), solicitud_items(*, solicitud_item_adjuntos(tipo, url, nombre, created_at))")
     .eq("id", id)
     .single();
   if (!sol) return NextResponse.json({ error: "Solicitud no encontrada" }, { status: 404 });
@@ -46,15 +69,25 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     observaciones: sol.observaciones,
     generadoPor: nombre,
     generadoEl: fechaHoraLima(new Date()),
-    items: (sol.solicitud_items || [])
-      .sort((x: any, y: any) => x.posicion - y.posicion)
-      .map((it: any) => ({
-        cantidad: Number(it.cantidad),
-        um: it.um || "UND",
-        descripcion: it.descripcion,
-        observacion: it.observacion,
-        tieneReferencia: (it.solicitud_item_adjuntos || []).length > 0
-      }))
+    items: await Promise.all(
+      (sol.solicitud_items || [])
+        .sort((x: any, y: any) => x.posicion - y.posicion)
+        .map(async (it: any) => {
+          const adj = (it.solicitud_item_adjuntos || []) as any[];
+          const imagenes = adj.filter((a) => a.tipo === "imagen");
+          const descargadas = await Promise.all(imagenes.slice(0, MAX_FOTOS).map((a) => descargarImagen(a.url, a.nombre)));
+          const fotos = descargadas.filter(Boolean) as { data: Buffer; format: "png" | "jpg"; nombre: string }[];
+          return {
+            cantidad: Number(it.cantidad),
+            um: it.um || "UND",
+            descripcion: it.descripcion,
+            observacion: it.observacion,
+            fotos,
+            fotosNoMostradas: imagenes.length - fotos.length,
+            enlaces: adj.filter((a) => a.tipo === "enlace" && /^https?:\/\//i.test(a.url)).map((a) => ({ url: a.url, nombre: a.nombre || a.url }))
+          };
+        })
+    )
   });
 
   const inline = new URL(req.url).searchParams.get("descargar") !== "1";

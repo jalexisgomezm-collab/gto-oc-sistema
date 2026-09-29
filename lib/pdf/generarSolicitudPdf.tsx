@@ -1,5 +1,5 @@
 import React from "react";
-import { Document, Page, View, Text, Image, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
+import { Document, Page, View, Text, Image, Link, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
 import path from "node:path";
 import { EMPRESA, VERDE_HEX, GRIS_TEXTO_HEX } from "@/lib/empresa";
 
@@ -23,7 +23,15 @@ export interface SolicitudPdfData {
   observaciones: string | null;
   generadoPor: string;
   generadoEl: string;
-  items: { cantidad: number; um: string; descripcion: string; observacion: string | null; tieneReferencia: boolean }[];
+  items: {
+    cantidad: number;
+    um: string;
+    descripcion: string;
+    observacion: string | null;
+    fotos: { data: Buffer; format: "png" | "jpg"; nombre: string }[];
+    fotosNoMostradas: number;
+    enlaces: { url: string; nombre: string }[];
+  }[];
 }
 
 const s = StyleSheet.create({
@@ -51,6 +59,16 @@ const s = StyleSheet.create({
   tr: { flexDirection: "row", borderBottomWidth: 1, borderColor: BORDE },
   td: { padding: 2.5, borderRightWidth: 1, borderColor: BORDE, fontSize: 7.8 },
   box: { width: 10, height: 10, borderWidth: 1, borderColor: BORDE, alignSelf: "center", marginTop: 2 },
+  // referencias
+  refTitulo: { fontFamily: B, fontSize: 9, marginTop: 14, paddingBottom: 3, borderBottomWidth: 1, borderColor: BORDE },
+  refBloque: { marginTop: 6 },
+  refItem: { fontFamily: B, fontSize: 8 },
+  refFotos: { flexDirection: "row", flexWrap: "wrap", marginTop: 4 },
+  refFoto: { width: 170, marginRight: 8, marginBottom: 6, borderWidth: 0.5, borderColor: "#BFBFBF", padding: 3 },
+  refImg: { width: 162, height: 122, objectFit: "contain" },
+  refPie: { fontSize: 6.5, color: GRIS_TEXTO, marginTop: 2 },
+  refAviso: { fontSize: 7, color: GRIS_TEXTO, marginTop: 2 },
+  refEnlace: { fontSize: 7.5, marginTop: 2, color: "#1F4E79" },
   // firmas
   firmas: { flexDirection: "row", justifyContent: "space-between", marginTop: 34 },
   firma: { width: "30%", alignItems: "center" },
@@ -166,8 +184,16 @@ function Documento({ d, logo }: { d: SolicitudPdfData; logo: string | null }) {
             <View style={[s.td, { width: COLS[1].w }]}>
               <Text style={{ fontFamily: B }}>{it.descripcion}</Text>
               {it.observacion ? <Text style={{ marginTop: 2 }}>{it.observacion}</Text> : null}
-              {it.tieneReferencia ? (
-                <Text style={{ marginTop: 2, color: GRIS_TEXTO, fontSize: 7 }}>Ver foto / enlace de referencia en el sistema</Text>
+              {it.fotos.length + it.fotosNoMostradas + it.enlaces.length > 0 ? (
+                <Text style={{ marginTop: 2, color: GRIS_TEXTO, fontSize: 7 }}>
+                  Ref.: {[
+                    it.fotos.length + it.fotosNoMostradas ? `${it.fotos.length + it.fotosNoMostradas} foto(s)` : null,
+                    it.enlaces.length ? `${it.enlaces.length} enlace(s)` : null
+                  ]
+                    .filter(Boolean)
+                    .join(", ")}{" "}
+                  (ver Referencias)
+                </Text>
               ) : null}
             </View>
             <Text style={[s.td, { width: COLS[2].w, textAlign: "right" }]}>{String(it.cantidad)}</Text>
@@ -186,6 +212,44 @@ function Documento({ d, logo }: { d: SolicitudPdfData; logo: string | null }) {
       <Text style={{ fontSize: 7, color: GRIS_TEXTO, marginTop: 3 }}>
         Anotar precio y tienda al comprar. Marcar &quot;Comprado&quot; al adquirir cada ítem y &quot;Recibido&quot; cuando el área lo recibe conforme.
       </Text>
+
+      {/* Referencias: fotos y enlaces de cada ítem */}
+      {d.items.some((it) => it.fotos.length + it.fotosNoMostradas + it.enlaces.length > 0) ? (
+        <View>
+          <Text style={s.refTitulo} minPresenceAhead={60}>
+            Referencias adjuntas
+          </Text>
+          {d.items.map((it, i) =>
+            it.fotos.length + it.fotosNoMostradas + it.enlaces.length === 0 ? null : (
+              <View key={i} style={s.refBloque}>
+                <Text style={s.refItem} minPresenceAhead={40}>
+                  Ítem {String((i + 1) * 10).padStart(5, "0")} · {it.descripcion}
+                </Text>
+                {it.fotos.length > 0 ? (
+                  <View style={s.refFotos}>
+                    {it.fotos.map((f, k) => (
+                      <View key={k} style={s.refFoto} wrap={false}>
+                        <Image src={{ data: f.data, format: f.format }} style={s.refImg} />
+                        <Text style={s.refPie}>{f.nombre}</Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+                {it.fotosNoMostradas > 0 ? (
+                  <Text style={s.refAviso}>
+                    {it.fotosNoMostradas} imagen(es) en un formato que no se puede imprimir; véanse en el sistema.
+                  </Text>
+                ) : null}
+                {it.enlaces.map((e, k) => (
+                  <Text key={k} style={s.refEnlace}>
+                    Enlace: <Link src={e.url}>{e.url}</Link>
+                  </Text>
+                ))}
+              </View>
+            )
+          )}
+        </View>
+      ) : null}
 
       {/* Firmas */}
       <View style={s.firmas} wrap={false}>
