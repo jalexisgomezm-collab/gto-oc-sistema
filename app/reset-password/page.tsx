@@ -33,6 +33,21 @@ export default function ResetPasswordPage() {
       const code = params.get("code");
       const errorUrl = params.get("error_description") || new URLSearchParams(window.location.hash.slice(1)).get("error_description");
 
+      // 0) Enlace con tokens en el hash (#access_token=...): funciona desde cualquier navegador o celular
+      const hash = new URLSearchParams(window.location.hash.slice(1));
+      const accessToken = hash.get("access_token");
+      const refreshToken = hash.get("refresh_token");
+      if (accessToken && refreshToken) {
+        const { error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+        window.history.replaceState(null, "", "/reset-password");
+        if (!error) {
+          setListo(true);
+          setVerificando(false);
+          return;
+        }
+        setMotivo("El enlace ya fue usado o venció. Pide uno nuevo.");
+      }
+
       // 1) Enlace con token_hash (funciona desde cualquier navegador o celular)
       if (tokenHash) {
         const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: "recovery" });

@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { createClient as createClienteSimple } from "@supabase/supabase-js";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "@/lib/supabaseConfig";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -36,7 +38,13 @@ export default function LoginPage() {
         setAviso("Cuenta creada. Si tu correo requiere confirmación, revisa tu bandeja de entrada antes de iniciar sesión.");
         setModo("login");
       } else {
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        // Flujo "implicit": el enlace del correo funciona desde cualquier navegador o celular
+        const clienteRecuperacion = createClienteSimple(
+          process.env.NEXT_PUBLIC_SUPABASE_URL || SUPABASE_URL,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || SUPABASE_ANON_KEY,
+          { auth: { flowType: "implicit", persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
+        );
+        const { error } = await clienteRecuperacion.auth.resetPasswordForEmail(email, {
           redirectTo: `${window.location.origin}/reset-password`
         });
         if (error) throw error;
