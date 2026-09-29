@@ -15,6 +15,8 @@ export default function ResetPasswordPage() {
   const [listo, setListo] = useState(false);
   const [verificando, setVerificando] = useState(true);
 
+  const [motivo, setMotivo] = useState<string | null>(null);
+
   useEffect(() => {
     const {
       data: { subscription }
@@ -25,10 +27,37 @@ export default function ResetPasswordPage() {
       }
     });
 
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) setListo(true);
+    (async () => {
+      const params = new URLSearchParams(window.location.search);
+      const tokenHash = params.get("token_hash");
+      const code = params.get("code");
+      const errorUrl = params.get("error_description") || new URLSearchParams(window.location.hash.slice(1)).get("error_description");
+
+      // 1) Enlace con token_hash (funciona desde cualquier navegador o celular)
+      if (tokenHash) {
+        const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: "recovery" });
+        if (!error) {
+          window.history.replaceState(null, "", "/reset-password");
+          setListo(true);
+          setVerificando(false);
+          return;
+        }
+        setMotivo("El enlace ya fue usado o venció. Pide uno nuevo.");
+      }
+
+      // 2) Enlace con code (solo funciona en el mismo navegador donde se pidió)
+      const { data } = await supabase.auth.getSession();
+      if (data.session) {
+        setListo(true);
+      } else if (code && !tokenHash) {
+        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        if (!error) setListo(true);
+        else setMotivo("Abre el enlace en el mismo navegador donde pediste la recuperación, o pide uno nuevo desde ese navegador.");
+      } else if (errorUrl) {
+        setMotivo(errorUrl);
+      }
       setVerificando(false);
-    });
+    })();
 
     return () => subscription.unsubscribe();
   }, []);
@@ -73,6 +102,7 @@ export default function ResetPasswordPage() {
             <p className="text-sm text-red-600 mb-4">
               Este enlace no es válido o ya expiró. Solicita uno nuevo desde la pantalla de inicio de sesión.
             </p>
+            {motivo && <p className="text-xs text-gray-500 mb-4">{motivo}</p>}
             <a href="/login" className="text-sm text-verde hover:underline">
               Volver a iniciar sesión
             </a>
