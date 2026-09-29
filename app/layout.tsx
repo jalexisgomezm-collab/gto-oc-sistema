@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Órdenes de Compra · GTO PERU",
+  title: "Logística y Compras · GTO PERU",
   description: "Sistema de emisión de órdenes de compra para proveedores - GTO PERU S.A.C."
 };
 

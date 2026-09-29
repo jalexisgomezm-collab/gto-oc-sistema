@@ -61,7 +61,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center px-4">
       <div className="w-full max-w-sm bg-white rounded-xl shadow-sm border border-gray-200 p-8">
         <h1 className="text-lg font-semibold text-verde mb-1">GTO PERU</h1>
-        <p className="text-sm text-gray-500 mb-6">Órdenes de Compra para Proveedores</p>
+        <p className="text-sm text-gray-500 mb-6">Módulo de Logística y Compras</p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {modo === "registro" && (
