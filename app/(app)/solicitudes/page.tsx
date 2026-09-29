@@ -120,10 +120,13 @@ export default async function SolicitudesPage({ searchParams }: { searchParams: 
                     </span>
                   )}
                 </td>
-                <td className="px-4 py-2 text-right">
-                  <Link href={`/solicitudes/${s.id}`} className="text-verde hover:underline text-sm">
+                <td className="px-4 py-2 text-right whitespace-nowrap">
+                  <Link href={`/solicitudes/${s.id}`} className="text-verde hover:underline text-sm mr-3">
                     Ver
                   </Link>
+                  <a href={`/api/solicitudes/${s.id}/pdf`} target="_blank" rel="noreferrer" className="text-verde hover:underline text-sm">
+                    PDF
+                  </a>
                 </td>
               </tr>
             ))}

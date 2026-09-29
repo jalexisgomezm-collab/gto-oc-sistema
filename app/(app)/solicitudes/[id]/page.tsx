@@ -89,9 +89,19 @@ export default async function SolicitudDetallePage({ params }: { params: Promise
     <div className="max-w-4xl">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-semibold">Solicitud de pedido N.º {solicitud.numero}</h1>
-        <Link href="/solicitudes" className="text-sm text-verde hover:underline">
-          ← Volver a solicitudes
-        </Link>
+        <div className="flex items-center gap-4">
+          <a
+            href={`/api/solicitudes/${solicitud.id}/pdf`}
+            target="_blank"
+            rel="noreferrer"
+            className="bg-verde text-white text-sm font-medium px-4 py-2 rounded-md hover:bg-verde-oscuro"
+          >
+            Imprimir / PDF
+          </a>
+          <Link href="/solicitudes" className="text-sm text-verde hover:underline">
+            ← Volver a solicitudes
+          </Link>
+        </div>
       </div>
 
       <SeguimientoSolicitud
