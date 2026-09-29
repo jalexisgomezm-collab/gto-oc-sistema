@@ -1,28 +1,10 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-
-const AREA_LABEL: Record<string, string> = {
-  LABORATORIO: "Laboratorio",
-  TALLER: "Taller",
-  LOGISTICA: "Logística",
-  ADMINISTRACION: "Administración"
-};
-
-const ESTADO_LABEL: Record<string, string> = {
-  pendiente: "Pendiente",
-  en_cotizacion: "En cotización",
-  convertida: "Convertida a OC",
-  anulada: "Anulada"
-};
-
-const PRIORIDAD_ESTILO: Record<string, string> = {
-  ALTA: "bg-red-100 text-red-700",
-  MEDIA: "bg-yellow-100 text-yellow-700",
-  BAJA: "bg-gray-100 text-gray-500"
-};
-
-const PRIORIDAD_LABEL: Record<string, string> = { ALTA: "Alta", MEDIA: "Media", BAJA: "Baja" };
+import { obtenerPerfil } from "@/lib/perfil";
+import { AREA_LABEL, ESTADO_LABEL, ESTADO_ESTILO, PRIORIDAD_ESTILO, PRIORIDAD_LABEL, TIPO_ORDEN_LABEL } from "@/lib/solicitudes";
+import SeguimientoSolicitud from "@/components/SeguimientoSolicitud";
+import CotizacionesSolicitud from "@/components/CotizacionesSolicitud";
 
 const TIPO_LABEL: Record<string, string> = {
   EVALUACION: "Evaluación",
@@ -47,14 +29,41 @@ export default async function SolicitudDetallePage({ params }: { params: Promise
   const items = (solicitud.solicitud_items || []).sort((a: any, b: any) => a.posicion - b.posicion);
   const proyecto = solicitud.proyectos;
 
+  const perfil = await obtenerPerfil(supabase);
+  const esCompras = !!perfil?.es_compras;
+
+  const { data: historial } = await supabase
+    .from("solicitud_seguimiento")
+    .select("id, estado, comentario, usuario_nombre, created_at")
+    .eq("solicitud_id", id)
+    .order("created_at", { ascending: true });
+
+  let cotizaciones: any[] = [];
+  let proveedores: any[] = [];
+  if (esCompras) {
+    const [{ data: cots }, { data: provs }] = await Promise.all([
+      supabase.from("solicitud_cotizaciones").select("*").eq("solicitud_id", id).order("created_at", { ascending: true }),
+      supabase.from("proveedores").select("id, razon_social, ruc").eq("activo", true).order("razon_social", { ascending: true })
+    ]);
+    cotizaciones = cots || [];
+    proveedores = provs || [];
+  }
+
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-4xl">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-semibold">Solicitud de pedido N.º {solicitud.numero}</h1>
         <Link href="/solicitudes" className="text-sm text-verde hover:underline">
           ← Volver a solicitudes
         </Link>
       </div>
+
+      <SeguimientoSolicitud
+        solicitudId={solicitud.id}
+        estado={solicitud.estado}
+        historial={(historial as any[]) || []}
+        esCompras={esCompras}
+      />
 
       <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-4 mb-6">
         <div className="grid grid-cols-3 gap-4 text-sm">
@@ -78,13 +87,14 @@ export default async function SolicitudDetallePage({ params }: { params: Promise
           </div>
           <div>
             <p className="text-xs text-gray-500 mb-0.5">Estado</p>
-            <span
-              className={`text-xs px-2 py-0.5 rounded-full ${
-                solicitud.estado === "pendiente" ? "bg-gray-100 text-gray-500" : "bg-verde-claro text-verde-oscuro"
-              }`}
-            >
+            <span className={`text-xs px-2 py-0.5 rounded-full ${ESTADO_ESTILO[solicitud.estado] || "bg-gray-100 text-gray-500"}`}>
               {ESTADO_LABEL[solicitud.estado] || solicitud.estado}
             </span>
+            {solicitud.orden_numero && (
+              <p className="text-xs text-gray-500 mt-1">
+                {TIPO_ORDEN_LABEL[solicitud.orden_tipo] || "Orden de compra"} N° {solicitud.orden_numero}
+              </p>
+            )}
           </div>
           <div>
             <p className="text-xs text-gray-500 mb-0.5">Proyecto / orden de trabajo</p>
@@ -111,6 +121,7 @@ export default async function SolicitudDetallePage({ params }: { params: Promise
         )}
       </div>
 
+      <h2 className="text-sm font-semibold text-gray-700 mb-3">Productos solicitados</h2>
       <div className="space-y-3">
         {items.map((it: any, idx: number) => {
           const adjuntos = it.solicitud_item_adjuntos || [];
@@ -157,6 +168,22 @@ export default async function SolicitudDetallePage({ params }: { params: Promise
           </div>
         )}
       </div>
+
+      {esCompras && (
+        <div className="mt-6">
+          <CotizacionesSolicitud
+            solicitudId={solicitud.id}
+            estado={solicitud.estado}
+            cotizaciones={cotizaciones}
+            proveedores={proveedores}
+            justificacion={solicitud.justificacion_eleccion}
+            motivoExcepcion={solicitud.motivo_excepcion}
+            ordenId={solicitud.orden_id}
+            ordenNumero={solicitud.orden_numero}
+            ordenTipo={solicitud.orden_tipo}
+          />
+        </div>
+      )}
     </div>
   );
 }

@@ -32,6 +32,7 @@ export default async function EditarOrdenPage({ params }: { params: Promise<{ id
     }));
 
   const inicial = {
+    tipo: (orden.tipo === "SERVICIO" ? "SERVICIO" : "COMPRA") as "COMPRA" | "SERVICIO",
     proveedor_id: orden.proveedor_id,
     fecha_emision: orden.fecha_emision,
     moneda: orden.moneda,

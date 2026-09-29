@@ -150,7 +150,7 @@ function OrdenDocumento({ data, logoDataUri }: { data: OrdenCompraData; logoData
       <View style={styles.headerRow}>
         {logoDataUri ? <Image src={logoDataUri} style={styles.logo} /> : <View />}
         <View style={styles.headerRight}>
-          <Text style={styles.tituloOC}>ORDEN DE COMPRA</Text>
+          <Text style={styles.tituloOC}>{data.tipo === "SERVICIO" ? "ORDEN DE SERVICIO" : "ORDEN DE COMPRA"}</Text>
           <Text style={styles.ocNumero}>N° {numeroPadded}</Text>
           <Text style={styles.ocRuc}>R.U.C. {EMPRESA.ruc}</Text>
         </View>
@@ -272,13 +272,13 @@ function OrdenDocumento({ data, logoDataUri }: { data: OrdenCompraData; logoData
           {observaciones && <Text style={styles.bodyLine}>{observaciones}</Text>}
           <Text style={styles.legalBlock}>
             <Text style={styles.labelBold}>Aceptación de la orden: </Text>
-            El proveedor deberá confirmar la recepción y aceptación de esta OC dentro de un plazo máximo de dos (2) días
+            El proveedor deberá confirmar la recepción y aceptación de esta orden dentro de un plazo máximo de dos (2) días
             calendario contados desde su envío. Si no comunica observaciones o rechazo dentro de dicho plazo, la orden se
             considerará aceptada tácitamente.
           </Text>
           <Text style={styles.legalBlock}>
             <Text style={styles.labelBold}>Documentos para facturación: </Text>
-            Consignar el número de esta OC y adjuntar factura, guía de remisión o constancia del servicio y conformidad,
+            Consignar el número de esta orden y adjuntar factura, guía de remisión o constancia del servicio y conformidad,
             cuando corresponda.
           </Text>
           {data.incluir_anticorrupcion !== false && (

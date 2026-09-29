@@ -4,7 +4,17 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import CerrarSesionBoton from "@/components/CerrarSesionBoton";
 
-const grupos = [
+const gruposSolicitante = [
+  {
+    titulo: "Requerimientos",
+    enlaces: [
+      { href: "/solicitudes", label: "Solicitudes de mi área", exacto: true },
+      { href: "/solicitudes/nueva", label: "Nueva solicitud" }
+    ]
+  }
+];
+
+const gruposCompras = [
   {
     titulo: "Solicitudes",
     enlaces: [
@@ -22,6 +32,10 @@ const grupos = [
       { href: "/ordenes/nueva", label: "Nueva orden" },
       { href: "/proveedores", label: "Proveedores" }
     ]
+  },
+  {
+    titulo: "Administración",
+    enlaces: [{ href: "/usuarios", label: "Usuarios y accesos" }]
   }
 ];
 
@@ -30,8 +44,19 @@ function esActivo(href: string, exacto: boolean | undefined, pathname: string) {
   return pathname.startsWith(href);
 }
 
-export default function BarraLateral({ nombre, correo }: { nombre: string; correo: string }) {
+export default function BarraLateral({
+  nombre,
+  correo,
+  esCompras,
+  rolTexto
+}: {
+  nombre: string;
+  correo: string;
+  esCompras: boolean;
+  rolTexto: string;
+}) {
   const pathname = usePathname();
+  const grupos = esCompras ? gruposCompras : gruposSolicitante;
   const base = nombre || correo || "";
   const iniciales =
     base
@@ -76,7 +101,7 @@ export default function BarraLateral({ nombre, correo }: { nombre: string; corre
           </div>
           <div className="min-w-0">
             <p className="text-sm font-medium text-gray-800 truncate">{nombre || correo}</p>
-            <p className="text-xs text-gray-400">Usuario</p>
+            <p className="text-xs text-gray-400">{rolTexto}</p>
           </div>
         </div>
         <CerrarSesionBoton />

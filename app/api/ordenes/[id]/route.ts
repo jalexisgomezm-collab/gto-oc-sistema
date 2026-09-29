@@ -25,6 +25,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!user) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
 
   const body = await req.json();
+  const tipo = body.tipo === "SERVICIO" ? "SERVICIO" : "COMPRA";
   const {
     proveedor_id,
     fecha_emision,
@@ -87,6 +88,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const { error: errUpdate } = await supabase
     .from("ordenes_compra")
     .update({
+      tipo,
       proveedor_id,
       fecha_emision: fecha_emision || new Date().toISOString().slice(0, 10),
       moneda: moneda || "SOLES",
@@ -128,6 +130,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   });
 
   const datosCompletos: OrdenCompraData = {
+    tipo,
     numero,
     fecha_emision: fechaEmisionTexto,
     moneda: (moneda || "SOLES") as any,
@@ -154,8 +157,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const numeroPadded = String(numero).padStart(6, "0");
   const provSlug = slug(proveedor.razon_social);
-  const pathDocx = `${numero}/OC_${numeroPadded}_${provSlug}.docx`;
-  const pathPdf = `${numero}/OC_${numeroPadded}_${provSlug}.pdf`;
+  const prefijo = tipo === "SERVICIO" ? "OS" : "OC";
+  const pathDocx = `${numero}/${prefijo}_${numeroPadded}_${provSlug}.docx`;
+  const pathPdf = `${numero}/${prefijo}_${numeroPadded}_${provSlug}.pdf`;
 
   try {
     const [docxBuf, pdfBuf] = await Promise.all([generarOrdenDocx(datosCompletos), generarOrdenPdf(datosCompletos)]);

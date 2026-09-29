@@ -20,6 +20,7 @@ interface ItemForm {
 }
 
 interface InicialOrden {
+  tipo?: "COMPRA" | "SERVICIO";
   proveedor_id: string;
   fecha_emision: string;
   moneda: "SOLES" | "DOLARES";
@@ -37,7 +38,7 @@ interface InicialOrden {
   observaciones: string;
   incluir_anticorrupcion: boolean;
   descuento: string;
-  items: ItemForm[];
+  items?: ItemForm[];
   proyecto_id?: string | null;
   proyecto_etiqueta?: string;
 }
@@ -54,13 +55,18 @@ const itemVacio: ItemForm = { cantidad: "1", um: "UND", codigo: "", descripcion:
 export default function NuevaOrdenForm({
   proveedores,
   ordenId,
-  inicial
+  inicial,
+  solicitudId = null,
+  tipoInicial = "COMPRA"
 }: {
   proveedores: ProveedorOpcion[];
   ordenId?: string;
   inicial?: InicialOrden;
+  solicitudId?: string | null;
+  tipoInicial?: "COMPRA" | "SERVICIO";
 }) {
   const router = useRouter();
+  const [tipo, setTipo] = useState<"COMPRA" | "SERVICIO">(inicial?.tipo || tipoInicial);
   const [proveedorId, setProveedorId] = useState(inicial?.proveedor_id || "");
   const [fechaEmision, setFechaEmision] = useState(inicial?.fecha_emision || new Date().toISOString().slice(0, 10));
   const [moneda, setMoneda] = useState<"SOLES" | "DOLARES">(inicial?.moneda || "SOLES");
@@ -185,6 +191,8 @@ export default function NuevaOrdenForm({
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          tipo,
+          solicitud_id: solicitudId,
           proveedor_id: proveedorId,
           fecha_emision: fechaEmision,
           moneda,
@@ -280,6 +288,20 @@ export default function NuevaOrdenForm({
 
       <section className="bg-white border border-gray-200 rounded-lg p-6 space-y-4">
         <h2 className="text-sm font-semibold text-verde">Datos generales</h2>
+        <div className="flex gap-2">
+          {(["COMPRA", "SERVICIO"] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setTipo(t)}
+              className={`text-sm px-4 py-1.5 rounded-md border ${
+                tipo === t ? "bg-verde text-white border-verde" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+              }`}
+            >
+              {t === "COMPRA" ? "Orden de compra (bienes)" : "Orden de servicio"}
+            </button>
+          ))}
+        </div>
         <div className="grid grid-cols-3 gap-4">
           <div className="col-span-2">
             <label className="block text-xs font-medium text-gray-600 mb-1">Proveedor</label>
@@ -412,7 +434,15 @@ export default function NuevaOrdenForm({
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <button type="submit" disabled={cargando} className="bg-verde text-white text-sm font-medium px-6 py-2.5 rounded-md hover:bg-verde-oscuro disabled:opacity-60">
-        {cargando ? (ordenId ? "Actualizando..." : "Generando orden...") : ordenId ? "Actualizar orden" : "Emitir orden de compra"}
+        {cargando
+          ? ordenId
+            ? "Actualizando..."
+            : "Generando orden..."
+          : ordenId
+          ? "Actualizar orden"
+          : tipo === "SERVICIO"
+          ? "Emitir orden de servicio"
+          : "Emitir orden de compra"}
       </button>
     </form>
   );

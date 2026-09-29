@@ -1,42 +1,78 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { obtenerPerfil } from "@/lib/perfil";
+import {
+  AREA_LABEL,
+  ESTADO_LABEL,
+  ESTADO_ESTILO,
+  ETAPAS,
+  ESTADOS_ESPECIALES,
+  PRIORIDAD_ESTILO,
+  PRIORIDAD_LABEL,
+  TIPO_ORDEN_CORTO
+} from "@/lib/solicitudes";
 
-const AREA_LABEL: Record<string, string> = {
-  LABORATORIO: "Laboratorio",
-  TALLER: "Taller",
-  LOGISTICA: "Logística",
-  ADMINISTRACION: "Administración"
-};
+const FILTROS = [
+  { value: "activas", label: "En proceso" },
+  ...ETAPAS.map((e) => ({ value: e.value, label: e.label })),
+  ...ESTADOS_ESPECIALES.map((e) => ({ value: e.value, label: e.label })),
+  { value: "todas", label: "Todas" }
+];
 
-const ESTADO_LABEL: Record<string, string> = {
-  pendiente: "Pendiente",
-  en_cotizacion: "En cotización",
-  convertida: "Convertida a OC",
-  anulada: "Anulada"
-};
+const ACTIVAS = ["pendiente", "en_consulta", "en_cotizacion", "proveedor_elegido", "convertida", "observada"];
 
-const PRIORIDAD_ESTILO: Record<string, string> = {
-  ALTA: "bg-red-100 text-red-700",
-  MEDIA: "bg-yellow-100 text-yellow-700",
-  BAJA: "bg-gray-100 text-gray-500"
-};
+export default async function SolicitudesPage({ searchParams }: { searchParams: Promise<{ estado?: string }> }) {
+  const { estado: filtroParam } = await searchParams;
+  const filtro = FILTROS.some((f) => f.value === filtroParam) ? (filtroParam as string) : "activas";
 
-const PRIORIDAD_LABEL: Record<string, string> = { ALTA: "Alta", MEDIA: "Media", BAJA: "Baja" };
-
-export default async function SolicitudesPage() {
   const supabase = await createClient();
-  const { data: solicitudes } = await supabase
+  const perfil = await obtenerPerfil(supabase);
+  const esCompras = !!perfil?.es_compras;
+
+  let query = supabase
     .from("solicitudes_pedido")
-    .select("id, numero, area, solicitante, fecha_solicitud, estado, prioridad, proyectos(nombre), solicitud_items(id)")
+    .select(
+      "id, numero, area, solicitante, fecha_solicitud, estado, prioridad, orden_numero, orden_tipo, updated_at, proyectos(nombre, numero_orden_trabajo), solicitud_items(id)"
+    )
     .order("numero", { ascending: false });
+  if (filtro === "activas") query = query.in("estado", ACTIVAS);
+  else if (filtro !== "todas") query = query.eq("estado", filtro);
+  const { data: solicitudes } = await query;
+
+  const titulo = esCompras
+    ? "Solicitudes de pedido"
+    : perfil?.area
+    ? `Solicitudes de ${AREA_LABEL[perfil.area] || perfil.area}`
+    : "Mis solicitudes";
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-semibold">Solicitudes de pedido</h1>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-xl font-semibold">{titulo}</h1>
         <Link href="/solicitudes/nueva" className="bg-verde text-white text-sm font-medium px-4 py-2 rounded-md hover:bg-verde-oscuro">
           + Nueva solicitud
         </Link>
+      </div>
+
+      {!esCompras && !perfil?.area && (
+        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mb-4">
+          Aún no tienes un área asignada: por ahora solo ves las solicitudes que tú registraste. Pide al área de compras que
+          te asigne tu área.
+        </p>
+      )}
+
+      <div className="flex flex-wrap gap-2 mb-4">
+        {FILTROS.map((f) => (
+          <Link
+            key={f.value}
+            href={f.value === "activas" ? "/solicitudes" : `/solicitudes?estado=${f.value}`}
+            className={`text-xs px-3 py-1 rounded-full border ${
+              filtro === f.value ? "bg-verde text-white border-verde" : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+            }`}
+          >
+            {f.label}
+          </Link>
+        ))}
       </div>
 
       <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
@@ -50,7 +86,7 @@ export default async function SolicitudesPage() {
               <th className="text-left px-4 py-2">Fecha</th>
               <th className="text-left px-4 py-2">Prioridad</th>
               <th className="text-left px-4 py-2">Ítems</th>
-              <th className="text-left px-4 py-2">Estado</th>
+              <th className="text-left px-4 py-2">Seguimiento</th>
               <th></th>
             </tr>
           </thead>
@@ -60,7 +96,9 @@ export default async function SolicitudesPage() {
                 <td className="px-4 py-2 font-medium">{s.numero}</td>
                 <td className="px-4 py-2">{AREA_LABEL[s.area] || s.area}</td>
                 <td className="px-4 py-2">{s.solicitante || "—"}</td>
-                <td className="px-4 py-2 text-gray-600">{s.proyectos?.nombre || "Abastecimiento"}</td>
+                <td className="px-4 py-2 text-gray-600">
+                  {s.proyectos ? [s.proyectos.numero_orden_trabajo, s.proyectos.nombre].filter(Boolean).join(" · ") : "Abastecimiento"}
+                </td>
                 <td className="px-4 py-2 text-gray-600">{s.fecha_solicitud}</td>
                 <td className="px-4 py-2">
                   <span className={`text-xs px-2 py-0.5 rounded-full ${PRIORIDAD_ESTILO[s.prioridad] || "bg-gray-100 text-gray-500"}`}>
@@ -69,13 +107,14 @@ export default async function SolicitudesPage() {
                 </td>
                 <td className="px-4 py-2">{(s.solicitud_items || []).length}</td>
                 <td className="px-4 py-2">
-                  <span
-                    className={`text-xs px-2 py-0.5 rounded-full ${
-                      s.estado === "pendiente" ? "bg-gray-100 text-gray-500" : "bg-verde-claro text-verde-oscuro"
-                    }`}
-                  >
+                  <span className={`text-xs px-2 py-0.5 rounded-full whitespace-nowrap ${ESTADO_ESTILO[s.estado] || "bg-gray-100 text-gray-500"}`}>
                     {ESTADO_LABEL[s.estado] || s.estado}
                   </span>
+                  {s.orden_numero && (
+                    <span className="block text-xs text-gray-400 mt-0.5">
+                      {TIPO_ORDEN_CORTO[s.orden_tipo] || "OC"} N° {s.orden_numero}
+                    </span>
+                  )}
                 </td>
                 <td className="px-4 py-2 text-right">
                   <Link href={`/solicitudes/${s.id}`} className="text-verde hover:underline text-sm">
@@ -87,7 +126,7 @@ export default async function SolicitudesPage() {
             {(!solicitudes || solicitudes.length === 0) && (
               <tr>
                 <td colSpan={9} className="px-4 py-8 text-center text-gray-400">
-                  Aún no se han registrado solicitudes de pedido.
+                  No hay solicitudes en esta vista.
                 </td>
               </tr>
             )}

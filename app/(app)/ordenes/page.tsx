@@ -7,13 +7,13 @@ export default async function OrdenesPage() {
   const supabase = await createClient();
   const { data: ordenes } = await supabase
     .from("ordenes_compra")
-    .select("id, numero, fecha_emision, moneda, total, estado, proveedores(razon_social)")
+    .select("id, numero, tipo, fecha_emision, moneda, total, estado, proveedores(razon_social)")
     .order("numero", { ascending: false });
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-semibold">Órdenes de compra</h1>
+        <h1 className="text-xl font-semibold">Órdenes de compra y servicio</h1>
         <Link href="/ordenes/nueva" className="bg-verde text-white text-sm font-medium px-4 py-2 rounded-md hover:bg-verde-oscuro">
           + Nueva orden
         </Link>
@@ -23,7 +23,7 @@ export default async function OrdenesPage() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
             <tr>
-              <th className="text-left px-4 py-2">N.º OC</th>
+              <th className="text-left px-4 py-2">N.º</th>
               <th className="text-left px-4 py-2">Proveedor</th>
               <th className="text-left px-4 py-2">Fecha</th>
               <th className="text-right px-4 py-2">Total</th>
@@ -35,7 +35,10 @@ export default async function OrdenesPage() {
           <tbody className="divide-y divide-gray-100">
             {(ordenes || []).map((o: any) => (
               <tr key={o.id}>
-                <td className="px-4 py-2 font-medium">{o.numero}</td>
+                <td className="px-4 py-2 font-medium whitespace-nowrap">
+                  <span className="text-xs text-gray-400 mr-1">{o.tipo === "SERVICIO" ? "OS" : "OC"}</span>
+                  {o.numero}
+                </td>
                 <td className="px-4 py-2">{o.proveedores?.razon_social}</td>
                 <td className="px-4 py-2 text-gray-600">{o.fecha_emision}</td>
                 <td className="px-4 py-2 text-right">

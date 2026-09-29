@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { obtenerPerfil } from "@/lib/perfil";
 
 export const runtime = "nodejs";
 
@@ -83,6 +84,10 @@ export async function POST(req: NextRequest) {
 
   if (!area || !AREAS.includes(area)) {
     return NextResponse.json({ error: "Selecciona un área válida" }, { status: 400 });
+  }
+  const perfil = await obtenerPerfil(supabase);
+  if (perfil && !perfil.es_compras && perfil.area && perfil.area !== area) {
+    return NextResponse.json({ error: "Solo puedes registrar solicitudes de tu área" }, { status: 403 });
   }
   if (!Array.isArray(items) || items.length === 0) {
     return NextResponse.json({ error: "Agrega al menos un ítem" }, { status: 400 });

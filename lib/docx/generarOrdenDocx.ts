@@ -156,7 +156,7 @@ export async function generarOrdenDocx(data: OrdenCompraData): Promise<Buffer> {
             [
               new Paragraph({
                 alignment: AlignmentType.RIGHT,
-                children: [run("ORDEN DE COMPRA", { bold: true, size: 19, color: VERDE_HEX })]
+                children: [run(data.tipo === "SERVICIO" ? "ORDEN DE SERVICIO" : "ORDEN DE COMPRA", { bold: true, size: 19, color: VERDE_HEX })]
               }),
               new Paragraph({
                 alignment: AlignmentType.RIGHT,
@@ -402,7 +402,7 @@ export async function generarOrdenDocx(data: OrdenCompraData): Promise<Buffer> {
       children: [
         run("Aceptación de la orden: ", { bold: true, size: 8 }),
         run(
-          "El proveedor deberá confirmar la recepción y aceptación de esta OC dentro de un plazo máximo de dos (2) días calendario contados desde su envío. Si no comunica observaciones o rechazo dentro de dicho plazo, la orden se considerará aceptada tácitamente.",
+          "El proveedor deberá confirmar la recepción y aceptación de esta orden dentro de un plazo máximo de dos (2) días calendario contados desde su envío. Si no comunica observaciones o rechazo dentro de dicho plazo, la orden se considerará aceptada tácitamente.",
           { size: 8 }
         )
       ]
@@ -414,7 +414,7 @@ export async function generarOrdenDocx(data: OrdenCompraData): Promise<Buffer> {
       children: [
         run("Documentos para facturación: ", { bold: true, size: 8 }),
         run(
-          "Consignar el número de esta OC y adjuntar factura, guía de remisión o constancia del servicio y conformidad, cuando corresponda.",
+          "Consignar el número de esta orden y adjuntar factura, guía de remisión o constancia del servicio y conformidad, cuando corresponda.",
           { size: 8 }
         )
       ]

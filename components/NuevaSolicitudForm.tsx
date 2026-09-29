@@ -4,6 +4,7 @@ import SelectorOT, { etiquetaOT } from "@/components/SelectorOT";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { AREAS } from "@/lib/solicitudes";
 
 interface Adjunto {
   tipo: "imagen" | "enlace";
@@ -31,12 +32,6 @@ interface ProyectoOpcion {
   cliente: string | null;
 }
 
-const AREAS = [
-  { value: "LABORATORIO", label: "Laboratorio" },
-  { value: "TALLER", label: "Taller" },
-  { value: "LOGISTICA", label: "Logística" },
-  { value: "ADMINISTRACION", label: "Administración" }
-];
 
 const PRIORIDADES = [
   { value: "ALTA", label: "Alta" },
@@ -67,10 +62,16 @@ async function subirImagenReferencia(file: File): Promise<string> {
   return data.publicUrl;
 }
 
-export default function NuevaSolicitudForm() {
+export default function NuevaSolicitudForm({
+  areaFija = null,
+  nombreInicial = ""
+}: {
+  areaFija?: string | null;
+  nombreInicial?: string;
+}) {
   const router = useRouter();
-  const [area, setArea] = useState("");
-  const [solicitante, setSolicitante] = useState("");
+  const [area, setArea] = useState(areaFija || "");
+  const [solicitante, setSolicitante] = useState(nombreInicial);
   const [fechaSolicitud, setFechaSolicitud] = useState(new Date().toISOString().slice(0, 10));
   const [prioridad, setPrioridad] = useState("MEDIA");
   const [observaciones, setObservaciones] = useState("");
@@ -225,7 +226,12 @@ export default function NuevaSolicitudForm() {
         <div className="grid grid-cols-4 gap-4">
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Área que solicita</label>
-            <select value={area} onChange={(e) => setArea(e.target.value)} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm">
+            <select
+              value={area}
+              onChange={(e) => setArea(e.target.value)}
+              disabled={!!areaFija}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm disabled:bg-gray-50 disabled:text-gray-700"
+            >
               <option value="">Selecciona un área...</option>
               {AREAS.map((a) => (
                 <option key={a.value} value={a.value}>

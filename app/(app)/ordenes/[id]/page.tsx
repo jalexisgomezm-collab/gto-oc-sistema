@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 
 const money = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -8,7 +9,7 @@ export default async function DetalleOrdenPage({ params }: { params: Promise<{ i
   const supabase = await createClient();
   const { data: orden } = await supabase
     .from("ordenes_compra")
-    .select("*, proveedores(razon_social, ruc, contacto), orden_items(*), proyectos(nombre, cliente, numero_orden_trabajo)")
+    .select("*, proveedores(razon_social, ruc, contacto), orden_items(*), proyectos(nombre, cliente, numero_orden_trabajo), solicitudes_pedido!ordenes_compra_solicitud_id_fkey(id, numero)")
     .eq("id", id)
     .single();
   if (!orden) notFound();
@@ -20,8 +21,15 @@ export default async function DetalleOrdenPage({ params }: { params: Promise<{ i
     <div className="max-w-3xl">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-semibold">OC N.º {orden.numero}</h1>
+          <h1 className="text-xl font-semibold">
+            {orden.tipo === "SERVICIO" ? "OS" : "OC"} N.º {orden.numero}
+          </h1>
           <p className="text-sm text-gray-500">{orden.proveedores?.razon_social}</p>
+          {orden.solicitudes_pedido && (
+            <Link href={`/solicitudes/${orden.solicitudes_pedido.id}`} className="text-xs text-verde hover:underline">
+              Solicitud de pedido N° {orden.solicitudes_pedido.numero}
+            </Link>
+          )}
         </div>
         <div className="flex gap-2">
           

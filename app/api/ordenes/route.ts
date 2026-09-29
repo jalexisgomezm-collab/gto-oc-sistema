@@ -25,6 +25,7 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
 
+  const tipo = body.tipo === "SERVICIO" ? "SERVICIO" : "COMPRA";
   const {
     proveedor_id,
     fecha_emision,
@@ -82,6 +83,7 @@ export async function POST(req: NextRequest) {
   const { data: ordenInsertada, error: errInsert } = await supabase
     .from("ordenes_compra")
     .insert({
+      tipo,
       numero,
       proveedor_id,
       fecha_emision: fecha_emision || new Date().toISOString().slice(0, 10),
@@ -113,6 +115,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `No se pudo crear la orden: ${errInsert?.message}` }, { status: 500 });
   }
   const ordenId = ordenInsertada.id;
+  const solicitudId: string | null = body.solicitud_id || null;
 
   const { error: errItems } = await supabase.from("orden_items").insert(itemsCalc.map((it) => ({ ...it, orden_id: ordenId })));
   if (errItems) {
@@ -126,6 +129,7 @@ export async function POST(req: NextRequest) {
   });
 
   const datosCompletos: OrdenCompraData = {
+    tipo,
     numero,
     fecha_emision: fechaEmisionTexto,
     moneda: (moneda || "SOLES") as any,
@@ -152,8 +156,9 @@ export async function POST(req: NextRequest) {
 
   const numeroPadded = String(numero).padStart(6, "0");
   const provSlug = slug(proveedor.razon_social);
-  const pathDocx = `${numero}/OC_${numeroPadded}_${provSlug}.docx`;
-  const pathPdf = `${numero}/OC_${numeroPadded}_${provSlug}.pdf`;
+  const prefijo = tipo === "SERVICIO" ? "OS" : "OC";
+  const pathDocx = `${numero}/${prefijo}_${numeroPadded}_${provSlug}.docx`;
+  const pathPdf = `${numero}/${prefijo}_${numeroPadded}_${provSlug}.pdf`;
 
   try {
     const [docxBuf, pdfBuf] = await Promise.all([generarOrdenDocx(datosCompletos), generarOrdenPdf(datosCompletos)]);
@@ -165,10 +170,21 @@ export async function POST(req: NextRequest) {
 
     await supabase.from("ordenes_compra").update({ archivo_docx_url: pathDocx, archivo_pdf_url: pathPdf }).eq("id", ordenId);
   } catch (err: any) {
+    if (solicitudId) await supabase.rpc("vincular_orden_solicitud", { p_solicitud: solicitudId, p_orden: ordenId });
     return NextResponse.json(
       { error: `La orden se guardó (N.º ${numero}) pero falló la generación de archivos: ${err.message}`, id: ordenId, numero },
       { status: 207 }
     );
+  }
+
+  if (solicitudId) {
+    const { error: errVinculo } = await supabase.rpc("vincular_orden_solicitud", { p_solicitud: solicitudId, p_orden: ordenId });
+    if (errVinculo) {
+      return NextResponse.json(
+        { error: `La orden N.º ${numero} se emitió, pero no se pudo actualizar la solicitud: ${errVinculo.message}`, id: ordenId, numero },
+        { status: 207 }
+      );
+    }
   }
 
   return NextResponse.json({ id: ordenId, numero });

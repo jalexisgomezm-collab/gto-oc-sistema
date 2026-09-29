@@ -31,6 +31,7 @@ export interface OrdenItem {
 }
 
 export interface OrdenCompraData {
+  tipo?: "COMPRA" | "SERVICIO";
   numero: number;
   fecha_emision: string;
   moneda: Moneda;
