@@ -247,7 +247,7 @@ export default function CotizacionesSolicitud({
                       </p>
                       {c.observaciones && <p className="text-xs text-gray-500 mt-0.5">{c.observaciones}</p>}
                       {c.archivo_path && (
-                        <button type="button" onClick={() => verArchivo(c.archivo_path!)} className="text-xs text-verde hover:underline mt-0.5">
+                        <button type="button" onClick={() => verArchivo(c.archivo_path!)} className="block text-left text-xs text-verde hover:underline mt-0.5">
                           Ver cotización ({c.archivo_nombre || "archivo"})
                         </button>
                       )}

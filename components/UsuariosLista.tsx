@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { AREAS } from "@/lib/solicitudes";
 import { ROL_LABEL } from "@/lib/perfil";
+import { fechaLima } from "@/lib/fechas";
 
 interface Usuario {
   id: string;
@@ -18,7 +19,7 @@ interface Usuario {
 
 function fecha(v: string | null) {
   if (!v) return "Nunca";
-  return new Date(v).toLocaleDateString("es-PE", { day: "2-digit", month: "2-digit", year: "numeric" });
+  return fechaLima(v);
 }
 
 export default function UsuariosLista({ usuarios, miId }: { usuarios: Usuario[]; miId: string }) {

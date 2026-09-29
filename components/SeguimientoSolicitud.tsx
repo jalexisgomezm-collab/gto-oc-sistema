@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { fechaHoraLima } from "@/lib/fechas";
 import { etapasPara, ESTADOS_ESPECIALES, ESTADO_LABEL, ESTADO_ESTILO } from "@/lib/solicitudes";
 
 export interface EventoSeguimiento {
@@ -13,15 +14,7 @@ export interface EventoSeguimiento {
   created_at: string;
 }
 
-function fechaHora(v: string) {
-  return new Date(v).toLocaleString("es-PE", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit"
-  });
-}
+const fechaHora = (v: string) => fechaHoraLima(v);
 
 export default function SeguimientoSolicitud({
   solicitudId,
