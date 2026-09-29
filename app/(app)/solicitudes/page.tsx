@@ -15,11 +15,12 @@ import {
 const FILTROS = [
   { value: "activas", label: "En proceso" },
   ...ETAPAS.map((e) => ({ value: e.value, label: e.label })),
+  { value: "compra_menor", label: "Compra menor" },
   ...ESTADOS_ESPECIALES.map((e) => ({ value: e.value, label: e.label })),
   { value: "todas", label: "Todas" }
 ];
 
-const ACTIVAS = ["pendiente", "en_consulta", "en_cotizacion", "proveedor_elegido", "convertida", "observada"];
+const ACTIVAS = ["pendiente", "en_consulta", "en_cotizacion", "proveedor_elegido", "convertida", "compra_menor", "observada"];
 
 export default async function SolicitudesPage({ searchParams }: { searchParams: Promise<{ estado?: string }> }) {
   const { estado: filtroParam } = await searchParams;
@@ -32,10 +33,11 @@ export default async function SolicitudesPage({ searchParams }: { searchParams: 
   let query = supabase
     .from("solicitudes_pedido")
     .select(
-      "id, numero, area, solicitante, fecha_solicitud, estado, prioridad, orden_numero, orden_tipo, updated_at, proyectos(nombre, numero_orden_trabajo), solicitud_items(id)"
+      "id, numero, area, solicitante, fecha_solicitud, estado, prioridad, orden_numero, orden_tipo, via_atencion, updated_at, proyectos(nombre, numero_orden_trabajo), solicitud_items(id)"
     )
     .order("numero", { ascending: false });
   if (filtro === "activas") query = query.in("estado", ACTIVAS);
+  else if (filtro === "compra_menor") query = query.eq("via_atencion", "COMPRA_MENOR");
   else if (filtro !== "todas") query = query.eq("estado", filtro);
   const { data: solicitudes } = await query;
 
@@ -110,6 +112,8 @@ export default async function SolicitudesPage({ searchParams }: { searchParams: 
                   <span className={`text-xs px-2 py-0.5 rounded-full whitespace-nowrap ${ESTADO_ESTILO[s.estado] || "bg-gray-100 text-gray-500"}`}>
                     {ESTADO_LABEL[s.estado] || s.estado}
                   </span>
+                  {s.via_atencion === "COMPRA_MENOR" && <span className="block text-xs text-gray-400 mt-0.5">Compra menor</span>}
+                  {s.via_atencion === "ALMACEN" && <span className="block text-xs text-gray-400 mt-0.5">Desde almacén</span>}
                   {s.orden_numero && (
                     <span className="block text-xs text-gray-400 mt-0.5">
                       {TIPO_ORDEN_CORTO[s.orden_tipo] || "OC"} N° {s.orden_numero}

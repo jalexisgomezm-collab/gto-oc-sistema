@@ -30,7 +30,8 @@ const gruposCompras = [
     enlaces: [
       { href: "/ordenes", label: "Órdenes", exacto: true },
       { href: "/ordenes/nueva", label: "Nueva orden" },
-      { href: "/proveedores", label: "Proveedores" }
+      { href: "/proveedores", label: "Proveedores" },
+      { href: "/compras-menores", label: "Compras menores" }
     ]
   },
   {

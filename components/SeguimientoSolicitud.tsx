@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { ETAPAS, ESTADOS_ESPECIALES, ESTADO_LABEL, ESTADO_ESTILO } from "@/lib/solicitudes";
+import { etapasPara, ESTADOS_ESPECIALES, ESTADO_LABEL, ESTADO_ESTILO } from "@/lib/solicitudes";
 
 export interface EventoSeguimiento {
   id: string;
@@ -27,13 +27,16 @@ export default function SeguimientoSolicitud({
   solicitudId,
   estado,
   historial,
-  esCompras
+  esCompras,
+  via = null
 }: {
   solicitudId: string;
   estado: string;
   historial: EventoSeguimiento[];
   esCompras: boolean;
+  via?: string | null;
 }) {
+  const ETAPAS = etapasPara(via);
   const router = useRouter();
   const [nuevoEstado, setNuevoEstado] = useState("");
   const [comentario, setComentario] = useState("");
@@ -85,7 +88,7 @@ export default function SeguimientoSolicitud({
         </span>
       </div>
 
-      <ol className="grid grid-cols-6 gap-1 mb-4">
+      <ol className="grid gap-1 mb-4" style={{ gridTemplateColumns: `repeat(${ETAPAS.length}, minmax(0, 1fr))` }}>
         {ETAPAS.map((e, i) => {
           const hecho = i < etapaActual || (i === etapaActual && estado === "atendida");
           const actual = i === etapaActual && !especial && estado !== "atendida";
