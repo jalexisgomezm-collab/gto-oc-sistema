@@ -56,7 +56,11 @@ export async function GET(req: NextRequest) {
       "N.º ítem",
       "Producto",
       "Cantidad",
-      "U.M."
+      "U.M.",
+      "Estado del ítem",
+      "Cant. atendida",
+      "Cant. pendiente",
+      "Atendido con"
     ]
       .map(celda)
       .join(";")
@@ -72,12 +76,26 @@ export async function GET(req: NextRequest) {
       PRIORIDAD_LABEL[s.prioridad] || s.prioridad,
       ESTADO_LABEL[s.estado] || s.estado,
       s.via ? VIA_LABEL[s.via] : "Sin definir",
-      s.ordenNumero ? `${TIPO_ORDEN_CORTO[s.ordenTipo || "COMPRA"]} ${s.ordenNumero}` : "",
+      s.ordenes,
       num(s.diasAtencion)
     ];
-    const items = s.items.length ? s.items : [{ descripcion: "", cantidad: NaN, um: "" }];
+    const items = s.items.length ? s.items : [{ descripcion: "", cantidad: NaN, um: "", estado: "", atendida: NaN, pendiente: NaN, atendidoCon: "" }];
     items.forEach((it, i) => {
-      lineas.push([...base, i + 1, it.descripcion, isNaN(it.cantidad) ? "" : num(it.cantidad), it.um].map(celda).join(";"));
+      lineas.push(
+        [
+          ...base,
+          i + 1,
+          it.descripcion,
+          isNaN(it.cantidad) ? "" : num(it.cantidad),
+          it.um,
+          it.estado,
+          isNaN(it.atendida) ? "" : num(it.atendida),
+          isNaN(it.pendiente) ? "" : num(it.pendiente),
+          it.atendidoCon
+        ]
+          .map(celda)
+          .join(";")
+      );
     });
   }
 

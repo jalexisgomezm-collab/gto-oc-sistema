@@ -61,6 +61,31 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Proveedor no encontrado" }, { status: 404 });
   }
 
+  // Validar que las cantidades ligadas a la solicitud no superen lo pendiente de cada ítem
+  if (body.solicitud_id) {
+    const pedidas = new Map<string, number>();
+    for (const it of items) {
+      if (it.solicitud_item_id) pedidas.set(it.solicitud_item_id, (pedidas.get(it.solicitud_item_id) || 0) + Number(it.cantidad || 0));
+    }
+    if (pedidas.size > 0) {
+      const { data: estados } = await supabase
+        .from("v_solicitud_items_estado")
+        .select("item_id, posicion, descripcion, cantidad_pendiente, um")
+        .in("item_id", Array.from(pedidas.keys()));
+      for (const e of (estados as any[]) || []) {
+        const pedida = pedidas.get(e.item_id) || 0;
+        if (pedida > Number(e.cantidad_pendiente) + 0.0001) {
+          return NextResponse.json(
+            {
+              error: `"${e.descripcion}": pides ${pedida} pero en la solicitud solo quedan ${Number(e.cantidad_pendiente)} ${e.um || "UND"} pendientes. Ajusta la cantidad; si compras de más, agrega el excedente como un ítem aparte.`
+            },
+            { status: 400 }
+          );
+        }
+      }
+    }
+  }
+
   const { data: numero, error: errFolio } = await supabase.rpc("siguiente_folio");
   if (errFolio) {
     return NextResponse.json({ error: `No se pudo asignar el folio: ${errFolio.message}` }, { status: 500 });
@@ -74,6 +99,10 @@ export async function POST(req: NextRequest) {
     opGravadas += vtotal;
     return { posicion: idx + 1, cantidad: cant, um: it.um || "UND", codigo: it.codigo || null, descripcion: it.descripcion, entrega: it.entrega || null, valor_unitario: vunit };
   });
+  // ítems de la solicitud que cubre esta orden (seguimiento por ítem)
+  const vinculos: { posicion: number; item_id: string; cantidad: number }[] = items
+    .map((it: any, idx: number) => ({ posicion: idx + 1, item_id: it.solicitud_item_id, cantidad: Number(it.cantidad) }))
+    .filter((v: any) => v.item_id && v.cantidad > 0);
   const subtotal = Math.round(opGravadas * 100) / 100;
   const desc = Math.round((Number(descuento) || 0) * 100) / 100;
   const gravada = Math.round((subtotal - desc) * 100) / 100;
@@ -117,7 +146,10 @@ export async function POST(req: NextRequest) {
   const ordenId = ordenInsertada.id;
   const solicitudId: string | null = body.solicitud_id || null;
 
-  const { error: errItems } = await supabase.from("orden_items").insert(itemsCalc.map((it) => ({ ...it, orden_id: ordenId })));
+  const { data: itemsGuardados, error: errItems } = await supabase
+    .from("orden_items")
+    .insert(itemsCalc.map((it) => ({ ...it, orden_id: ordenId })))
+    .select("id, posicion");
   if (errItems) {
     return NextResponse.json({ error: `No se pudieron guardar los ítems: ${errItems.message}` }, { status: 500 });
   }
@@ -154,6 +186,17 @@ export async function POST(req: NextRequest) {
     items: itemsCalc as any
   };
 
+  async function vincular() {
+    if (!solicitudId) return null;
+    const pItems = vinculos.map((v) => ({
+      item_id: v.item_id,
+      cantidad: v.cantidad,
+      orden_item_id: (itemsGuardados || []).find((g: any) => g.posicion === v.posicion)?.id || null
+    }));
+    const { error } = await supabase.rpc("vincular_orden_items", { p_solicitud: solicitudId, p_orden: ordenId, p_items: pItems });
+    return error;
+  }
+
   const numeroPadded = String(numero).padStart(6, "0");
   const provSlug = slug(proveedor.razon_social);
   const prefijo = tipo === "SERVICIO" ? "OS" : "OC";
@@ -170,7 +213,7 @@ export async function POST(req: NextRequest) {
 
     await supabase.from("ordenes_compra").update({ archivo_docx_url: pathDocx, archivo_pdf_url: pathPdf }).eq("id", ordenId);
   } catch (err: any) {
-    if (solicitudId) await supabase.rpc("vincular_orden_solicitud", { p_solicitud: solicitudId, p_orden: ordenId });
+    await vincular();
     return NextResponse.json(
       { error: `La orden se guardó (N.º ${numero}) pero falló la generación de archivos: ${err.message}`, id: ordenId, numero },
       { status: 207 }
@@ -178,7 +221,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (solicitudId) {
-    const { error: errVinculo } = await supabase.rpc("vincular_orden_solicitud", { p_solicitud: solicitudId, p_orden: ordenId });
+    const errVinculo = await vincular();
     if (errVinculo) {
       return NextResponse.json(
         { error: `La orden N.º ${numero} se emitió, pero no se pudo actualizar la solicitud: ${errVinculo.message}`, id: ordenId, numero },

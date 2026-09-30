@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { fechaHoraLima } from "@/lib/fechas";
-import { etapasPara, ESTADOS_ESPECIALES, ESTADO_LABEL, ESTADO_ESTILO } from "@/lib/solicitudes";
+import { etapasPara, ESTADOS_ESPECIALES, ESTADO_LABEL, ESTADO_ESTILO, AYUDA_PARCIAL } from "@/lib/solicitudes";
 
 export interface EventoSeguimiento {
   id: string;
@@ -37,7 +37,11 @@ export default function SeguimientoSolicitud({
   const [error, setError] = useState<string | null>(null);
 
   // En "observada" o "anulada" la barra muestra la última etapa normal alcanzada
-  let etapaActual = ETAPAS.findIndex((e) => e.value === estado);
+  const parcial = estado === "atendida_parcial";
+  // "Atendido parcial" se muestra en la etapa de OC/OS (o la última del camino corto)
+  let etapaActual = parcial
+    ? Math.max(0, ETAPAS.findIndex((e) => e.value === "convertida" || e.value === "compra_menor"))
+    : ETAPAS.findIndex((e) => e.value === estado);
   if (etapaActual < 0) {
     const ultima = [...historial].reverse().find((h) => h.estado && ETAPAS.some((e) => e.value === h.estado));
     etapaActual = ultima ? ETAPAS.findIndex((e) => e.value === ultima.estado) : 0;
@@ -117,7 +121,7 @@ export default function SeguimientoSolicitud({
           {especial.value === "observada" && !esCompras && " Responde con un comentario abajo."}
         </p>
       ) : (
-        <p className="text-xs text-gray-500 mb-4">{ETAPAS[etapaActual]?.ayuda}</p>
+        <p className={`text-xs mb-4 ${parcial ? "text-lime-800" : "text-gray-500"}`}>{parcial ? AYUDA_PARCIAL : ETAPAS[etapaActual]?.ayuda}</p>
       )}
 
       <div className="border-t border-gray-100 pt-4">

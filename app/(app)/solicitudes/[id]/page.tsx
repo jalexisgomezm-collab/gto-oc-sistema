@@ -2,10 +2,10 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { obtenerPerfil } from "@/lib/perfil";
-import { AREA_LABEL, ESTADO_LABEL, ESTADO_ESTILO, PRIORIDAD_ESTILO, PRIORIDAD_LABEL, TIPO_ORDEN_LABEL } from "@/lib/solicitudes";
+import { AREA_LABEL, ESTADO_LABEL, ESTADO_ESTILO, PRIORIDAD_ESTILO, PRIORIDAD_LABEL, TIPO_ORDEN_CORTO, estadoItem, type AtencionItem } from "@/lib/solicitudes";
 import SeguimientoSolicitud from "@/components/SeguimientoSolicitud";
 import CotizacionesSolicitud from "@/components/CotizacionesSolicitud";
-import AtencionSolicitud from "@/components/AtencionSolicitud";
+import ItemsSolicitud from "@/components/ItemsSolicitud";
 
 const TIPO_LABEL: Record<string, string> = {
   EVALUACION: "Evaluación",
@@ -38,6 +38,24 @@ export default async function SolicitudDetallePage({ params }: { params: Promise
     .select("id, estado, comentario, usuario_nombre, created_at")
     .eq("solicitud_id", id)
     .order("created_at", { ascending: true });
+
+  const { data: atencionesData } = await supabase
+    .from("solicitud_item_atenciones")
+    .select("id, item_id, tipo, cantidad, orden_id, orden_numero, orden_tipo, orden_anulada, proveedor, entregado, entregado_at, comentario, usuario_nombre, created_at")
+    .eq("solicitud_id", id)
+    .order("created_at", { ascending: true });
+  const atenciones = ((atencionesData as any[]) || []) as AtencionItem[];
+  const hayPendientes =
+    items.length === 0 ||
+    items.some((it: any) => estadoItem(Number(it.cantidad), atenciones.filter((a) => a.item_id === it.id)).pendiente > 0);
+  // órdenes emitidas para esta solicitud (una por proveedor si se atendió por partes)
+  const ordenesMap = new Map<string, { id: string; numero: number | null; tipo: string | null; proveedor: string | null; anulada: boolean }>();
+  for (const a of atenciones) {
+    if (a.tipo === "ORDEN" && a.orden_id && !ordenesMap.has(a.orden_id)) {
+      ordenesMap.set(a.orden_id, { id: a.orden_id, numero: a.orden_numero, tipo: a.orden_tipo, proveedor: a.proveedor, anulada: a.orden_anulada });
+    }
+  }
+  const ordenes = Array.from(ordenesMap.values());
 
   let cotizaciones: any[] = [];
   let proveedores: any[] = [];
@@ -112,20 +130,6 @@ export default async function SolicitudDetallePage({ params }: { params: Promise
         via={via}
       />
 
-      {esCompras && (
-        <AtencionSolicitud
-          solicitudId={solicitud.id}
-          estado={solicitud.estado}
-          via={via}
-          tieneCotizaciones={cotizaciones.length > 0}
-          tieneOrden={!!solicitud.orden_id}
-          limite={limite}
-          compras={comprasMenores}
-          avisos={avisos}
-          totalAreaMes={totalAreaMes}
-        />
-      )}
-
       <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-4 mb-6">
         <div className="grid grid-cols-3 gap-4 text-sm">
           <div>
@@ -151,10 +155,19 @@ export default async function SolicitudDetallePage({ params }: { params: Promise
             <span className={`text-xs px-2 py-0.5 rounded-full ${ESTADO_ESTILO[solicitud.estado] || "bg-gray-100 text-gray-500"}`}>
               {ESTADO_LABEL[solicitud.estado] || solicitud.estado}
             </span>
-            {solicitud.orden_numero && (
+            {ordenes.filter((o) => !o.anulada).length > 0 ? (
               <p className="text-xs text-gray-500 mt-1">
-                {TIPO_ORDEN_LABEL[solicitud.orden_tipo] || "Orden de compra"} N° {solicitud.orden_numero}
+                {ordenes
+                  .filter((o) => !o.anulada)
+                  .map((o) => `${TIPO_ORDEN_CORTO[o.tipo || "COMPRA"] || "OC"} N° ${o.numero}`)
+                  .join(" · ")}
               </p>
+            ) : (
+              solicitud.orden_numero && (
+                <p className="text-xs text-gray-500 mt-1">
+                  {TIPO_ORDEN_CORTO[solicitud.orden_tipo] || "OC"} N° {solicitud.orden_numero}
+                </p>
+              )
             )}
           </div>
           <div>
@@ -182,55 +195,19 @@ export default async function SolicitudDetallePage({ params }: { params: Promise
         )}
       </div>
 
-      <h2 className="text-sm font-semibold text-gray-700 mb-3">Productos solicitados</h2>
-      <div className="space-y-3">
-        {items.map((it: any, idx: number) => {
-          const adjuntos = it.solicitud_item_adjuntos || [];
-          return (
-            <div key={it.id} className="bg-white border border-gray-200 rounded-lg p-4">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-sm font-medium">
-                    {idx + 1}. {it.descripcion}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    Cantidad: {it.cantidad} {it.um}
-                    {it.observacion ? ` · ${it.observacion}` : ""}
-                  </p>
-                </div>
-              </div>
-              {adjuntos.length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {adjuntos.map((a: any) =>
-                    a.tipo === "imagen" ? (
-                      <a key={a.id} href={a.url} target="_blank" rel="noreferrer">
-                        <img src={a.url} alt={a.nombre || ""} className="w-16 h-16 object-cover rounded-md border border-gray-200" />
-                      </a>
-                    ) : (
-                      <a
-                        key={a.id}
-                        href={a.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-xs text-verde hover:underline bg-verde-claro px-2 py-1 rounded-md max-w-xs truncate"
-                      >
-                        {a.nombre || a.url}
-                      </a>
-                    )
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })}
-        {items.length === 0 && (
-          <div className="bg-white border border-gray-200 rounded-lg p-8 text-center text-gray-400">
-            Esta solicitud no tiene ítems.
-          </div>
-        )}
-      </div>
+      <ItemsSolicitud
+        solicitudId={solicitud.id}
+        estado={solicitud.estado}
+        esCompras={esCompras}
+        items={items}
+        atenciones={atenciones}
+        limite={limite}
+        compras={comprasMenores}
+        avisos={avisos}
+        totalAreaMes={totalAreaMes}
+      />
 
-      {esCompras && via !== "COMPRA_MENOR" && via !== "ALMACEN" && (
+      {esCompras && (cotizaciones.length > 0 || (hayPendientes && solicitud.estado !== "anulada")) && (
         <div className="mt-6">
           <CotizacionesSolicitud
             solicitudId={solicitud.id}
@@ -239,9 +216,8 @@ export default async function SolicitudDetallePage({ params }: { params: Promise
             proveedores={proveedores}
             justificacion={solicitud.justificacion_eleccion}
             motivoExcepcion={solicitud.motivo_excepcion}
-            ordenId={solicitud.orden_id}
-            ordenNumero={solicitud.orden_numero}
-            ordenTipo={solicitud.orden_tipo}
+            ordenes={ordenes}
+            hayPendientes={hayPendientes}
           />
         </div>
       )}

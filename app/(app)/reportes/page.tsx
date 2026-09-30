@@ -117,7 +117,7 @@ export default async function ReportesPage({ searchParams }: { searchParams: Pro
             <select name="estado" defaultValue={f.estado} className="mt-1 w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm text-gray-800">
               <option value="">Todas</option>
               <option value="en_proceso">En proceso (sin cerrar)</option>
-              {[...ETAPAS, { value: "compra_menor", label: "Comprado (compra menor)" }, ...ESTADOS_ESPECIALES].map((e) => (
+              {[...ETAPAS, { value: "compra_menor", label: "Comprado (compra menor)" }, { value: "atendida_parcial", label: "Atendido parcial" }, ...ESTADOS_ESPECIALES].map((e) => (
                 <option key={e.value} value={e.value}>
                   {e.label}
                 </option>
@@ -140,6 +140,7 @@ export default async function ReportesPage({ searchParams }: { searchParams: Pro
               <option value="NORMAL">Proceso normal</option>
               <option value="COMPRA_MENOR">Compra menor</option>
               <option value="ALMACEN">Desde almacén</option>
+              <option value="MIXTA">Mixta (por ítems)</option>
               <option value="SIN_DEFINIR">Aún sin definir</option>
             </select>
           </label>
@@ -315,17 +316,20 @@ export default async function ReportesPage({ searchParams }: { searchParams: Pro
                         <td className="px-3 py-2 text-gray-600 max-w-[14rem] truncate" title={s.proyecto || ""}>
                           {s.proyecto || "Abastecimiento"}
                         </td>
-                        <td className="px-3 py-2">{s.items.length}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">
+                          {s.items.length}
+                          {s.items.some((it) => it.atendida > 0) && s.items.some((it) => it.pendiente > 0) && (
+                            <span className="block text-[11px] text-lime-800">
+                              {s.items.filter((it) => it.pendiente > 0).length} pendiente(s)
+                            </span>
+                          )}
+                        </td>
                         <td className="px-3 py-2">{PRIORIDAD_LABEL[s.prioridad] || s.prioridad}</td>
                         <td className="px-3 py-2">
                           <span className={`text-xs px-2 py-0.5 rounded-full whitespace-nowrap ${ESTADO_ESTILO[s.estado] || "bg-gray-100"}`}>
                             {ESTADO_LABEL[s.estado] || s.estado}
                           </span>
-                          {s.ordenNumero && (
-                            <span className="block text-xs text-gray-400 mt-0.5">
-                              {TIPO_ORDEN_CORTO[s.ordenTipo || "COMPRA"]} N° {s.ordenNumero}
-                            </span>
-                          )}
+                          {s.ordenes && <span className="block text-xs text-gray-400 mt-0.5">{s.ordenes}</span>}
                         </td>
                         <td className="px-3 py-2 text-right text-gray-600">{s.diasAtencion ?? "—"}</td>
                       </tr>

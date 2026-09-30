@@ -9,18 +9,20 @@ import {
   ESTADOS_ESPECIALES,
   PRIORIDAD_ESTILO,
   PRIORIDAD_LABEL,
-  TIPO_ORDEN_CORTO
+  TIPO_ORDEN_CORTO,
+  estadoItem
 } from "@/lib/solicitudes";
 
 const FILTROS = [
   { value: "activas", label: "En proceso" },
   ...ETAPAS.map((e) => ({ value: e.value, label: e.label })),
   { value: "compra_menor", label: "Compra menor" },
+  { value: "atendida_parcial", label: "Atendido parcial" },
   ...ESTADOS_ESPECIALES.map((e) => ({ value: e.value, label: e.label })),
   { value: "todas", label: "Todas" }
 ];
 
-const ACTIVAS = ["pendiente", "en_consulta", "en_cotizacion", "proveedor_elegido", "convertida", "compra_menor", "observada"];
+const ACTIVAS = ["pendiente", "en_consulta", "en_cotizacion", "proveedor_elegido", "convertida", "compra_menor", "atendida_parcial", "observada"];
 
 export default async function SolicitudesPage({ searchParams }: { searchParams: Promise<{ estado?: string }> }) {
   const { estado: filtroParam } = await searchParams;
@@ -33,7 +35,7 @@ export default async function SolicitudesPage({ searchParams }: { searchParams: 
   let query = supabase
     .from("solicitudes_pedido")
     .select(
-      "id, numero, area, solicitante, fecha_solicitud, estado, prioridad, orden_numero, orden_tipo, via_atencion, updated_at, proyectos(nombre, numero_orden_trabajo), solicitud_items(id)"
+      "id, numero, area, solicitante, fecha_solicitud, estado, prioridad, orden_numero, orden_tipo, via_atencion, updated_at, proyectos(nombre, numero_orden_trabajo), solicitud_items(id, cantidad), solicitud_item_atenciones(item_id, tipo, cantidad, entregado, orden_anulada, orden_numero, orden_tipo)"
     )
     .order("numero", { ascending: false });
   if (filtro === "activas") query = query.in("estado", ACTIVAS);
@@ -107,18 +109,34 @@ export default async function SolicitudesPage({ searchParams }: { searchParams: 
                     {PRIORIDAD_LABEL[s.prioridad] || s.prioridad}
                   </span>
                 </td>
-                <td className="px-4 py-2">{(s.solicitud_items || []).length}</td>
+                <td className="px-4 py-2 whitespace-nowrap">
+                  {(s.solicitud_items || []).length}
+                  {(() => {
+                    const ats = s.solicitud_item_atenciones || [];
+                    if (ats.length === 0) return null;
+                    const its = s.solicitud_items || [];
+                    const listos = its.filter((it: any) => estadoItem(Number(it.cantidad), ats.filter((a: any) => a.item_id === it.id)).pendiente <= 0).length;
+                    return listos < its.length ? <span className="block text-[11px] text-lime-800">{listos} de {its.length} atendidos</span> : null;
+                  })()}
+                </td>
                 <td className="px-4 py-2">
                   <span className={`text-xs px-2 py-0.5 rounded-full whitespace-nowrap ${ESTADO_ESTILO[s.estado] || "bg-gray-100 text-gray-500"}`}>
                     {ESTADO_LABEL[s.estado] || s.estado}
                   </span>
                   {s.via_atencion === "COMPRA_MENOR" && <span className="block text-xs text-gray-400 mt-0.5">Compra menor</span>}
                   {s.via_atencion === "ALMACEN" && <span className="block text-xs text-gray-400 mt-0.5">Desde almacén</span>}
-                  {s.orden_numero && (
-                    <span className="block text-xs text-gray-400 mt-0.5">
-                      {TIPO_ORDEN_CORTO[s.orden_tipo] || "OC"} N° {s.orden_numero}
-                    </span>
-                  )}
+                  {s.via_atencion === "MIXTA" && <span className="block text-xs text-gray-400 mt-0.5">Mixta (por ítems)</span>}
+                  {(() => {
+                    const ords = Array.from(
+                      new Set(
+                        (s.solicitud_item_atenciones || [])
+                          .filter((a: any) => a.tipo === "ORDEN" && !a.orden_anulada)
+                          .map((a: any) => `${TIPO_ORDEN_CORTO[a.orden_tipo] || "OC"} N° ${a.orden_numero}`)
+                      )
+                    );
+                    const texto = ords.length ? ords.join(" · ") : s.orden_numero ? `${TIPO_ORDEN_CORTO[s.orden_tipo] || "OC"} N° ${s.orden_numero}` : "";
+                    return texto ? <span className="block text-xs text-gray-400 mt-0.5">{texto}</span> : null;
+                  })()}
                 </td>
                 <td className="px-4 py-2 text-right whitespace-nowrap">
                   <Link href={`/solicitudes/${s.id}`} className="text-verde hover:underline text-sm mr-3">

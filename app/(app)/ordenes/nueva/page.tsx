@@ -1,13 +1,20 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import NuevaOrdenForm from "@/components/NuevaOrdenForm";
+import { estadoItem, fmtCant, type AtencionItem } from "@/lib/solicitudes";
 
 export default async function NuevaOrdenPage({
   searchParams
 }: {
-  searchParams: Promise<{ solicitud?: string; tipo?: string }>;
+  searchParams: Promise<{ solicitud?: string; tipo?: string; items?: string }>;
 }) {
-  const { solicitud: solicitudId, tipo: tipoParam } = await searchParams;
+  const { solicitud: solicitudId, tipo: tipoParam, items: itemsParam } = await searchParams;
+  // items=<id>:<cantidad>,<id>:<cantidad> (ítems elegidos en la solicitud)
+  const elegidos = new Map<string, number>();
+  for (const par of (itemsParam || "").split(",")) {
+    const [iid, cant] = par.split(":");
+    if (iid && Number(cant) > 0) elegidos.set(iid, Number(cant));
+  }
   const tipo = tipoParam === "SERVICIO" ? "SERVICIO" : "COMPRA";
   const supabase = await createClient();
   const { data: proveedores } = await supabase
@@ -27,18 +34,32 @@ export default async function NuevaOrdenPage({
     solicitud = data;
   }
 
+  let totalPendientes = 0;
+  let incluidos = 0;
   if (solicitud) {
     const cot = (solicitud.solicitud_cotizaciones || []).find((c: any) => c.elegida) || null;
-    const items = (solicitud.solicitud_items || [])
+    const { data: ats } = await supabase
+      .from("solicitud_item_atenciones")
+      .select("item_id, tipo, cantidad, entregado, orden_anulada")
+      .eq("solicitud_id", solicitud.id);
+    const atenciones = ((ats as any[]) || []) as AtencionItem[];
+    const conSaldo = (solicitud.solicitud_items || [])
       .sort((a: any, b: any) => a.posicion - b.posicion)
-      .map((it: any) => ({
-        cantidad: String(it.cantidad),
+      .map((it: any) => ({ it, pendiente: estadoItem(Number(it.cantidad), atenciones.filter((a) => a.item_id === it.id)).pendiente }))
+      .filter((x: any) => x.pendiente > 0);
+    totalPendientes = conSaldo.length;
+    const items = conSaldo
+      .filter((x: any) => elegidos.size === 0 || elegidos.has(x.it.id))
+      .map(({ it, pendiente }: any) => ({
+        cantidad: fmtCant(Math.min(pendiente, elegidos.get(it.id) ?? pendiente)),
         um: it.um || "UND",
         codigo: "",
         descripcion: it.descripcion,
         entrega: "",
-        valor_unitario: ""
+        valor_unitario: "",
+        solicitud_item_id: it.id
       }));
+    incluidos = items.length;
     const p = solicitud.proyectos;
     inicial = {
       tipo,
@@ -79,7 +100,13 @@ export default async function NuevaOrdenPage({
             solicitud N° {solicitud.numero}
           </Link>
           . Completa los valores unitarios según la cotización elegida y revisa los datos antes de emitir.
-          {solicitud.orden_id && <span className="block text-amber-700 mt-1">Ojo: esta solicitud ya tiene una orden emitida.</span>}
+          {totalPendientes === 0 ? (
+            <span className="block text-amber-700 mt-1">Ojo: todos los ítems de esta solicitud ya están atendidos.</span>
+          ) : (
+            <span className="block text-gray-600 mt-1">
+              Incluye {incluidos} de {totalPendientes} ítem(s) pendiente(s). Lo que no pidas aquí sigue pendiente en la solicitud.
+            </span>
+          )}
         </p>
       ) : (
         <div className="mb-6" />

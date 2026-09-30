@@ -30,29 +30,38 @@ export interface AvisoFraccionamiento {
 
 const soles = (v: number) => "S/ " + Number(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+export interface ItemSeleccionado {
+  item_id: string;
+  cantidad: number;
+  etiqueta: string;
+}
+
+export type ModoAtencion = "" | "compra" | "almacen" | "anular";
+
 export default function AtencionSolicitud({
   solicitudId,
   estado,
-  via,
-  tieneCotizaciones,
-  tieneOrden,
   limite,
   compras,
   avisos,
-  totalAreaMes
+  totalAreaMes,
+  modo,
+  setModo,
+  seleccion,
+  alTerminar
 }: {
   solicitudId: string;
   estado: string;
-  via: string | null;
-  tieneCotizaciones: boolean;
-  tieneOrden: boolean;
   limite: number;
   compras: CompraMenor[];
   avisos: AvisoFraccionamiento[];
   totalAreaMes: number;
+  modo: ModoAtencion;
+  setModo: (m: ModoAtencion) => void;
+  seleccion: ItemSeleccionado[];
+  alTerminar: () => void;
 }) {
   const router = useRouter();
-  const [modo, setModo] = useState<"" | "compra" | "almacen">("");
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
   const [monto, setMonto] = useState("");
   const [proveedor, setProveedor] = useState("");
@@ -63,17 +72,17 @@ export default function AtencionSolicitud({
   const [observacion, setObservacion] = useState("");
   const [entregado, setEntregado] = useState(true);
   const [comentarioAlmacen, setComentarioAlmacen] = useState("");
+  const [motivoAnular, setMotivoAnular] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const cerrada = estado === "anulada" || estado === "atendida";
   const gastado = compras.reduce((a, c) => a + Number(c.monto), 0);
   const disponible = Math.max(0, limite - gastado);
-  // Se puede elegir camino mientras no haya empezado el proceso normal
-  const puedeElegir = !cerrada && !tieneOrden && !tieneCotizaciones && via !== "ALMACEN";
-  const mostrarCompra = via === "COMPRA_MENOR" || compras.length > 0;
+  const itemsRpc = seleccion.map((s) => ({ item_id: s.item_id, cantidad: s.cantidad }));
+  const hayForm = modo !== "" && !cerrada;
 
-  if (!puedeElegir && !mostrarCompra && via !== "ALMACEN") return null;
+  if (!hayForm && compras.length === 0) return null;
 
   async function verComprobante(path: string) {
     const supabase = createClient();
@@ -94,6 +103,7 @@ export default function AtencionSolicitud({
     }
     if (!proveedor.trim()) return setError("Indica dónde se compró");
     if (!archivo) return setError("Adjunta la foto de la boleta o factura");
+    if (seleccion.length === 0) return setError("Marca los ítems que se compraron");
 
     setGuardando(true);
     const supabase = createClient();
@@ -113,7 +123,8 @@ export default function AtencionSolicitud({
         p_comprobante_nombre: archivo.name,
         p_fecha: fecha,
         p_observacion: observacion.trim() || null,
-        p_entregado: entregado
+        p_entregado: entregado,
+        p_items: itemsRpc
       });
       if (errRpc) {
         await supabase.storage.from("documentos-oc").remove([ruta]);
@@ -125,6 +136,7 @@ export default function AtencionSolicitud({
       setNumComp("");
       setArchivo(null);
       setObservacion("");
+      alTerminar();
       router.refresh();
     } catch (err: any) {
       setError(err.message || "No se pudo registrar la compra");
@@ -135,53 +147,59 @@ export default function AtencionSolicitud({
 
   async function atenderAlmacen() {
     setError(null);
+    if (seleccion.length === 0) return setError("Marca los ítems que se entregan desde almacén");
     setGuardando(true);
     const supabase = createClient();
     const { error: err } = await supabase.rpc("atender_desde_almacen", {
       p_solicitud: solicitudId,
-      p_comentario: comentarioAlmacen.trim() || null
+      p_comentario: comentarioAlmacen.trim() || null,
+      p_items: itemsRpc
     });
     setGuardando(false);
     if (err) return setError(err.message);
     setModo("");
+    setComentarioAlmacen("");
+    alTerminar();
     router.refresh();
   }
+
+  async function anularItems() {
+    setError(null);
+    if (seleccion.length === 0) return setError("Marca los ítems que ya no se atenderán");
+    if (!motivoAnular.trim()) return setError("Indica el motivo (ej: el área ya no lo necesita, se consiguió por otro medio)");
+    setGuardando(true);
+    const supabase = createClient();
+    const { error: err } = await supabase.rpc("anular_items_solicitud", {
+      p_solicitud: solicitudId,
+      p_items: itemsRpc,
+      p_motivo: motivoAnular.trim()
+    });
+    setGuardando(false);
+    if (err) return setError(err.message);
+    setModo("");
+    setMotivoAnular("");
+    alTerminar();
+    router.refresh();
+  }
+
+  const listaSeleccion = (
+    <ul className="text-xs text-gray-600 list-disc pl-5">
+      {seleccion.map((s) => (
+        <li key={s.item_id}>{s.etiqueta}</li>
+      ))}
+    </ul>
+  );
 
   return (
     <section className="bg-white border border-gray-200 rounded-lg p-6 mb-6 space-y-4">
       <div>
-        <h2 className="text-sm font-semibold text-verde">Atención del requerimiento</h2>
+        <h2 className="text-sm font-semibold text-verde">
+          {modo === "almacen" ? "Atender desde almacén" : modo === "anular" ? "Anular ítems" : "Compras menores"}
+        </h2>
         <p className="text-xs text-gray-500">Solo visible para el área de compras.</p>
       </div>
 
-      {via === "ALMACEN" && <p className="text-sm">Este requerimiento se atendió con stock de almacén, sin compra.</p>}
-
-      {puedeElegir && compras.length === 0 && (
-        <div className="grid grid-cols-3 gap-3">
-          <button
-            type="button"
-            onClick={() => setModo(modo === "compra" ? "" : "compra")}
-            className={`text-left border rounded-md p-3 hover:bg-gray-50 ${modo === "compra" ? "border-verde bg-verde-claro" : "border-gray-200"}`}
-          >
-            <p className="text-sm font-medium">Compra menor</p>
-            <p className="text-xs text-gray-500">Hasta {soles(limite)} con IGV. Se compra directo, sin cotizaciones ni OC.</p>
-          </button>
-          <button
-            type="button"
-            onClick={() => setModo(modo === "almacen" ? "" : "almacen")}
-            className={`text-left border rounded-md p-3 hover:bg-gray-50 ${modo === "almacen" ? "border-verde bg-verde-claro" : "border-gray-200"}`}
-          >
-            <p className="text-sm font-medium">Atender desde almacén</p>
-            <p className="text-xs text-gray-500">Ya hay stock: se entrega sin comprar.</p>
-          </button>
-          <div className="border border-gray-200 rounded-md p-3">
-            <p className="text-sm font-medium">Proceso normal</p>
-            <p className="text-xs text-gray-500">Consulta a proveedores, cuadro comparativo y OC/OS. Usa el cuadro de cotizaciones de abajo.</p>
-          </div>
-        </div>
-      )}
-
-      {avisos.length > 0 && (puedeElegir || mostrarCompra) && (
+      {avisos.length > 0 && (modo === "compra" || compras.length > 0) && (
         <div className="text-xs bg-amber-50 border border-amber-200 text-amber-800 rounded-md px-3 py-2 space-y-1">
           <p className="font-medium">Posible fraccionamiento: esta área ya compró lo mismo como compra menor en los últimos 30 días.</p>
           {avisos.map((a) => (
@@ -195,7 +213,7 @@ export default function AtencionSolicitud({
           <p>Si se repite, conviene juntar el pedido y hacer una sola compra con cotizaciones y OC.</p>
         </div>
       )}
-      {(puedeElegir || mostrarCompra) && totalAreaMes > 0 && (
+      {(modo === "compra" || compras.length > 0) && totalAreaMes > 0 && (
         <p className="text-xs text-gray-500">Compras menores de esta área en los últimos 30 días: {soles(totalAreaMes)}.</p>
       )}
 
@@ -233,13 +251,8 @@ export default function AtencionSolicitud({
           </table>
           <p className="text-xs text-gray-500 mt-2">
             Total {soles(gastado)} de un límite de {soles(limite)}.
-            {!cerrada && disponible > 0 && " Si falta algo, puedes registrar otra compra con el saldo."}
+            {!cerrada && disponible > 0 && " Para otra compra, marca los ítems pendientes arriba y elige Compra menor."}
           </p>
-          {!cerrada && disponible > 0 && modo !== "compra" && (
-            <button type="button" onClick={() => setModo("compra")} className="text-sm text-verde hover:underline mt-1">
-              + Registrar otra compra
-            </button>
-          )}
         </div>
       )}
 
@@ -248,6 +261,7 @@ export default function AtencionSolicitud({
           <p className="text-sm font-medium">
             Registrar compra menor <span className="text-xs text-gray-400 font-normal">(disponible: {soles(disponible)})</span>
           </p>
+          {listaSeleccion}
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="block text-xs text-gray-500 mb-1">Fecha de compra</label>
@@ -296,7 +310,7 @@ export default function AtencionSolicitud({
           </div>
           <label className="flex items-center gap-2 text-sm text-gray-600">
             <input type="checkbox" checked={entregado} onChange={(e) => setEntregado(e.target.checked)} />
-            Ya se entregó al área (marca la solicitud como Atendida)
+            Ya se entregó al área
           </label>
           <div className="flex gap-2">
             <button type="submit" disabled={guardando} className="bg-verde text-white text-sm px-4 py-2 rounded-md hover:bg-verde-oscuro disabled:opacity-60">
@@ -311,16 +325,38 @@ export default function AtencionSolicitud({
 
       {modo === "almacen" && !cerrada && (
         <div className="border border-gray-200 rounded-md p-4 space-y-2">
-          <p className="text-sm font-medium">Atender desde almacén</p>
+          <p className="text-sm font-medium">Se entregan con stock de almacén:</p>
+          {listaSeleccion}
           <input
             value={comentarioAlmacen}
             onChange={(e) => setComentarioAlmacen(e.target.value)}
-            placeholder="Opcional: quién recibió, cantidad entregada..."
+            placeholder="Opcional: quién recibió, observaciones..."
             className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
           />
           <div className="flex gap-2">
             <button type="button" onClick={atenderAlmacen} disabled={guardando} className="bg-verde text-white text-sm px-4 py-2 rounded-md hover:bg-verde-oscuro disabled:opacity-60">
               {guardando ? "Guardando..." : "Marcar como entregado"}
+            </button>
+            <button type="button" onClick={() => setModo("")} className="text-sm text-gray-500 hover:underline">
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {modo === "anular" && !cerrada && (
+        <div className="border border-red-200 rounded-md p-4 space-y-2">
+          <p className="text-sm font-medium">Estos ítems ya no se atenderán:</p>
+          {listaSeleccion}
+          <input
+            value={motivoAnular}
+            onChange={(e) => setMotivoAnular(e.target.value)}
+            placeholder="Motivo (obligatorio): ej. el área ya no lo necesita"
+            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+          />
+          <div className="flex gap-2">
+            <button type="button" onClick={anularItems} disabled={guardando} className="bg-red-600 text-white text-sm px-4 py-2 rounded-md hover:bg-red-700 disabled:opacity-60">
+              {guardando ? "Guardando..." : "Anular ítems"}
             </button>
             <button type="button" onClick={() => setModo("")} className="text-sm text-gray-500 hover:underline">
               Cancelar

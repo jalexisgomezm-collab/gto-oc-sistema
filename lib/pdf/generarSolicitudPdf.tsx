@@ -31,6 +31,8 @@ export interface SolicitudPdfData {
     fotos: { data: Buffer; format: "png" | "jpg"; nombre: string }[];
     fotosNoMostradas: number;
     enlaces: { url: string; nombre: string }[];
+    /** situación del ítem (ej. "Parcial: 6 de 10 · OC N° 276 (6)"); null si aún no se atiende */
+    atencion?: string | null;
   }[];
 }
 
@@ -188,6 +190,7 @@ function Documento({ d, logo }: { d: SolicitudPdfData; logo: string | null }) {
             <Text style={[s.td, { width: COLS[0].w }]}>{String((i + 1) * 10).padStart(5, "0")}</Text>
             <View style={[s.td, { width: COLS[1].w }]}>
               <Text style={{ fontFamily: B }}>{it.descripcion}</Text>
+              {it.atencion ? <Text style={{ marginTop: 2, color: "#016B39", fontSize: 7 }}>{it.atencion}</Text> : null}
               {it.fotos.length + it.fotosNoMostradas > 0 ? (
                 <Text style={{ marginTop: 2, color: GRIS_TEXTO, fontSize: 7 }}>
                   {it.fotos.length + it.fotosNoMostradas} foto(s) de referencia (ver al final)

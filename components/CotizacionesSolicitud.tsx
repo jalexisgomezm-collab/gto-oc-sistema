@@ -55,9 +55,8 @@ export default function CotizacionesSolicitud({
   proveedores,
   justificacion,
   motivoExcepcion,
-  ordenId,
-  ordenNumero,
-  ordenTipo
+  ordenes,
+  hayPendientes
 }: {
   solicitudId: string;
   estado: string;
@@ -65,9 +64,8 @@ export default function CotizacionesSolicitud({
   proveedores: ProveedorOpcion[];
   justificacion: string | null;
   motivoExcepcion: string | null;
-  ordenId: string | null;
-  ordenNumero: number | null;
-  ordenTipo: string | null;
+  ordenes: { id: string; numero: number | null; tipo: string | null; proveedor: string | null; anulada: boolean }[];
+  hayPendientes: boolean;
 }) {
   const router = useRouter();
   const [mostrarForm, setMostrarForm] = useState(false);
@@ -79,7 +77,7 @@ export default function CotizacionesSolicitud({
   const [justif, setJustif] = useState("");
   const [motivo, setMotivo] = useState("");
 
-  const bloqueado = !!ordenId || estado === "anulada" || estado === "atendida";
+  const bloqueado = !hayPendientes || estado === "anulada" || estado === "atendida";
   const elegida = cotizaciones.find((c) => c.elegida) || null;
   const faltan = Math.max(0, MINIMO_COTIZACIONES - cotizaciones.length);
 
@@ -434,39 +432,48 @@ export default function CotizacionesSolicitud({
           </p>
           {justificacion && <p className="text-xs text-gray-600">Motivo: {justificacion}</p>}
           {motivoExcepcion && <p className="text-xs text-amber-700">Excepción (menos de {MINIMO_COTIZACIONES} cotizaciones): {motivoExcepcion}</p>}
-          {ordenId ? (
-            <p className="text-sm">
-              Se emitió la {TIPO_ORDEN_LABEL[ordenTipo || "COMPRA"]?.toLowerCase()} N° {ordenNumero}.{" "}
-              <Link href={`/ordenes/${ordenId}`} className="text-verde hover:underline">
-                Ver orden
+          {ordenes.length > 0 && (
+            <ul className="text-sm space-y-0.5">
+              {ordenes.map((o) => (
+                <li key={o.id} className={o.anulada ? "text-gray-400 line-through" : ""}>
+                  Se emitió la {TIPO_ORDEN_LABEL[o.tipo || "COMPRA"]?.toLowerCase()} N° {o.numero}
+                  {o.proveedor ? ` a ${o.proveedor}` : ""}.{" "}
+                  <Link href={`/ordenes/${o.id}`} className="text-verde hover:underline">
+                    Ver orden
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+          {hayPendientes && estado !== "anulada" && (
+            <div className="flex flex-wrap gap-2 pt-1">
+              {!elegida.proveedor_id && (
+                <p className="text-xs text-amber-700 w-full">
+                  Este proveedor no está registrado: regístralo en{" "}
+                  <Link href="/proveedores/nuevo" className="underline">
+                    Proveedores
+                  </Link>{" "}
+                  y luego elígelo en la orden.
+                </p>
+              )}
+              <p className="text-xs text-gray-500 w-full">
+                {ordenes.length > 0
+                  ? "Aún hay ítems pendientes. Para pedir solo algunos a este u otro proveedor, márcalos en la lista de productos."
+                  : "La orden incluirá todos los ítems pendientes. Para pedir solo algunos, márcalos en la lista de productos."}
+              </p>
+              <Link
+                href={`/ordenes/nueva?solicitud=${solicitudId}&tipo=COMPRA`}
+                className="bg-verde text-white text-sm font-medium px-4 py-2 rounded-md hover:bg-verde-oscuro"
+              >
+                {ordenes.length > 0 ? "Orden de compra con lo pendiente" : "Generar orden de compra"}
               </Link>
-            </p>
-          ) : (
-            estado !== "anulada" && (
-              <div className="flex flex-wrap gap-2 pt-1">
-                {!elegida.proveedor_id && (
-                  <p className="text-xs text-amber-700 w-full">
-                    Este proveedor no está registrado: regístralo en{" "}
-                    <Link href="/proveedores/nuevo" className="underline">
-                      Proveedores
-                    </Link>{" "}
-                    y luego elígelo en la orden.
-                  </p>
-                )}
-                <Link
-                  href={`/ordenes/nueva?solicitud=${solicitudId}&tipo=COMPRA`}
-                  className="bg-verde text-white text-sm font-medium px-4 py-2 rounded-md hover:bg-verde-oscuro"
-                >
-                  Generar orden de compra
-                </Link>
-                <Link
-                  href={`/ordenes/nueva?solicitud=${solicitudId}&tipo=SERVICIO`}
-                  className="border border-verde text-verde text-sm font-medium px-4 py-2 rounded-md hover:bg-verde-claro"
-                >
-                  Generar orden de servicio
-                </Link>
-              </div>
-            )
+              <Link
+                href={`/ordenes/nueva?solicitud=${solicitudId}&tipo=SERVICIO`}
+                className="border border-verde text-verde text-sm font-medium px-4 py-2 rounded-md hover:bg-verde-claro"
+              >
+                {ordenes.length > 0 ? "Orden de servicio con lo pendiente" : "Generar orden de servicio"}
+              </Link>
+            </div>
           )}
         </div>
       )}

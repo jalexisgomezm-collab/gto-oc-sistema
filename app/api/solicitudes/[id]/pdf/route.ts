@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { obtenerPerfil } from "@/lib/perfil";
 import { generarSolicitudPdf } from "@/lib/pdf/generarSolicitudPdf";
-import { AREA_LABEL, ESTADO_LABEL, PRIORIDAD_LABEL, TIPO_ORDEN_CORTO, VIA_LABEL } from "@/lib/solicitudes";
+import { AREA_LABEL, ESTADO_LABEL, PRIORIDAD_LABEL, TIPO_ORDEN_CORTO, VIA_LABEL, estadoItem, fmtCant, textoAtencion, type AtencionItem } from "@/lib/solicitudes";
 import { fechaHoraLima } from "@/lib/fechas";
 
 export const runtime = "nodejs";
@@ -46,6 +46,19 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     .single();
   if (!sol) return NextResponse.json({ error: "Solicitud no encontrada" }, { status: 404 });
 
+  const { data: atsData } = await supabase
+    .from("solicitud_item_atenciones")
+    .select("id, item_id, tipo, cantidad, orden_id, orden_numero, orden_tipo, orden_anulada, proveedor, entregado, entregado_at, comentario, usuario_nombre, created_at")
+    .eq("solicitud_id", id);
+  const atenciones = ((atsData as any[]) || []) as AtencionItem[];
+  const ordenesTexto = Array.from(
+    new Set(
+      atenciones
+        .filter((a) => a.tipo === "ORDEN" && !a.orden_anulada)
+        .map((a) => `${TIPO_ORDEN_CORTO[a.orden_tipo || "COMPRA"] || "OC"} N° ${a.orden_numero}`)
+    )
+  ).join(", ");
+
   const perfil = await obtenerPerfil(supabase);
   const nombre = (user.user_metadata as any)?.nombre_completo || perfil?.nombre_completo || user.email || "";
   const p = sol.proyectos;
@@ -61,7 +74,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     proyecto: p ? [p.numero_orden_trabajo, p.nombre].filter(Boolean).join(" · ") : "Abastecimiento general",
     cliente: p?.cliente || null,
     ocCliente: p?.numero_oc_cliente || null,
-    referenciaOrden: sol.orden_numero
+    referenciaOrden: ordenesTexto
+      ? ordenesTexto
+      : sol.orden_numero
       ? `${TIPO_ORDEN_CORTO[sol.orden_tipo] || "OC"} N° ${sol.orden_numero}`
       : sol.via_atencion && sol.via_atencion !== "NORMAL"
       ? VIA_LABEL[sol.via_atencion]
@@ -77,7 +92,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           const imagenes = adj.filter((a) => a.tipo === "imagen");
           const descargadas = await Promise.all(imagenes.slice(0, MAX_FOTOS).map((a) => descargarImagen(a.url, a.nombre)));
           const fotos = descargadas.filter(Boolean) as { data: Buffer; format: "png" | "jpg"; nombre: string }[];
+          const ats = atenciones.filter((a) => a.item_id === it.id && !a.orden_anulada);
+          const est = estadoItem(Number(it.cantidad), ats);
+          const atencion = ats.length
+            ? `${est.etiqueta} — ${ats.map((a) => `${textoAtencion(a)} (${fmtCant(Number(a.cantidad))})`).join("; ")}`
+            : null;
           return {
+            atencion,
             cantidad: Number(it.cantidad),
             um: it.um || "UND",
             descripcion: it.descripcion,

@@ -1,3 +1,4 @@
+import { estadoItem, fmtCant, textoAtencion, TIPO_ORDEN_CORTO, type AtencionItem } from "@/lib/solicitudes";
 import { AREAS } from "@/lib/solicitudes";
 
 export interface FiltrosReporte {
@@ -9,7 +10,7 @@ export interface FiltrosReporte {
   via: string; // "" | NORMAL | COMPRA_MENOR | ALMACEN | SIN_DEFINIR
 }
 
-export const EN_PROCESO = ["pendiente", "en_consulta", "en_cotizacion", "proveedor_elegido", "convertida", "compra_menor"];
+export const EN_PROCESO = ["pendiente", "en_consulta", "en_cotizacion", "proveedor_elegido", "convertida", "compra_menor", "atendida_parcial"];
 
 const hoyLima = () => {
   const p = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
@@ -27,7 +28,7 @@ export function leerFiltros(sp: Record<string, string | undefined>): FiltrosRepo
     area: AREAS.some((a) => a.value === sp.area) ? (sp.area as string) : "",
     estado: sp.estado || "",
     prioridad: ["ALTA", "MEDIA", "BAJA"].includes(sp.prioridad || "") ? (sp.prioridad as string) : "",
-    via: ["NORMAL", "COMPRA_MENOR", "ALMACEN", "SIN_DEFINIR"].includes(sp.via || "") ? (sp.via as string) : ""
+    via: ["NORMAL", "COMPRA_MENOR", "ALMACEN", "MIXTA", "SIN_DEFINIR"].includes(sp.via || "") ? (sp.via as string) : ""
   };
 }
 
@@ -61,7 +62,9 @@ export interface FilaReporte {
   ordenTipo: string | null;
   proyecto: string | null;
   proyectoClase: string | null;
-  items: { descripcion: string; cantidad: number; um: string }[];
+  items: { descripcion: string; cantidad: number; um: string; estado: string; atendida: number; pendiente: number; atendidoCon: string }[];
+  /** órdenes (OC/OS) emitidas para la solicitud, ej. "OC 276, OS 280" */
+  ordenes: string;
   diasAtencion: number | null;
 }
 
@@ -69,7 +72,7 @@ export async function obtenerReporte(supabase: any, f: FiltrosReporte) {
   let q = supabase
     .from("solicitudes_pedido")
     .select(
-      "id, numero, area, solicitante, fecha_solicitud, estado, prioridad, via_atencion, orden_numero, orden_tipo, created_at, proyectos(numero_orden_trabajo, nombre, clase), solicitud_items(descripcion, cantidad, um)"
+      "id, numero, area, solicitante, fecha_solicitud, estado, prioridad, via_atencion, orden_numero, orden_tipo, created_at, proyectos(numero_orden_trabajo, nombre, clase), solicitud_items(id, posicion, descripcion, cantidad, um), solicitud_item_atenciones(item_id, tipo, cantidad, entregado, orden_anulada, orden_numero, orden_tipo, proveedor, comentario, created_at)"
     )
     .gte("fecha_solicitud", f.desde)
     .lte("fecha_solicitud", f.hasta)
@@ -114,7 +117,31 @@ export async function obtenerReporte(supabase: any, f: FiltrosReporte) {
       ordenTipo: s.orden_tipo,
       proyecto: s.proyectos ? [s.proyectos.numero_orden_trabajo, s.proyectos.nombre].filter(Boolean).join(" · ") : null,
       proyectoClase: s.proyectos?.clase || null,
-      items: (s.solicitud_items || []).map((it: any) => ({ descripcion: it.descripcion, cantidad: Number(it.cantidad), um: it.um || "UND" })),
+      items: (s.solicitud_items || [])
+        .sort((a: any, b: any) => (a.posicion || 0) - (b.posicion || 0))
+        .map((it: any) => {
+          const ats = ((s.solicitud_item_atenciones || []) as AtencionItem[]).filter((a) => a.item_id === it.id);
+          const est = estadoItem(Number(it.cantidad), ats);
+          return {
+            descripcion: it.descripcion,
+            cantidad: Number(it.cantidad),
+            um: it.um || "UND",
+            estado: est.etiqueta,
+            atendida: est.atendida,
+            pendiente: est.pendiente,
+            atendidoCon: ats
+              .filter((a) => !a.orden_anulada)
+              .map((a) => `${textoAtencion(a)} (${fmtCant(Number(a.cantidad))})`)
+              .join(" | ")
+          };
+        }),
+      ordenes: Array.from(
+        new Set(
+          ((s.solicitud_item_atenciones || []) as AtencionItem[])
+            .filter((a) => a.tipo === "ORDEN" && !a.orden_anulada)
+            .map((a) => `${TIPO_ORDEN_CORTO[a.orden_tipo || "COMPRA"] || "OC"} ${a.orden_numero}`)
+        )
+      ).join(", ") || (s.orden_numero ? `${TIPO_ORDEN_CORTO[s.orden_tipo || "COMPRA"] || "OC"} ${s.orden_numero}` : ""),
       diasAtencion: dias === null ? null : Math.round(dias * 10) / 10
     };
   });

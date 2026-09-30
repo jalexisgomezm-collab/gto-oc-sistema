@@ -17,6 +17,8 @@ interface ItemForm {
   descripcion: string;
   entrega: string;
   valor_unitario: string;
+  /** ítem de la solicitud de pedido del que viene (para el seguimiento por ítem) */
+  solicitud_item_id?: string;
 }
 
 interface InicialOrden {
@@ -219,7 +221,8 @@ export default function NuevaOrdenForm({
             codigo: it.codigo || null,
             descripcion: it.descripcion,
             entrega: it.entrega || null,
-            valor_unitario: Number(it.valor_unitario)
+            valor_unitario: Number(it.valor_unitario),
+            solicitud_item_id: it.solicitud_item_id || null
           }))
         })
       });
@@ -367,7 +370,10 @@ export default function NuevaOrdenForm({
           {items.map((it, idx) => (
             <div key={idx} className="grid grid-cols-12 gap-2 items-end border-b border-gray-100 pb-3">
               <div className="col-span-4">
-                <label className="block text-xs text-gray-500 mb-1">Descripción</label>
+                <label className="block text-xs text-gray-500 mb-1">
+                  Descripción
+                  {it.solicitud_item_id && <span className="ml-1 text-[10px] text-verde">(de la solicitud)</span>}
+                </label>
                 <input value={it.descripcion} onChange={(e) => actualizarItem(idx, "descripcion", e.target.value)} className="w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm" />
               </div>
               <div className="col-span-1">

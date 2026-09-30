@@ -31,6 +31,7 @@ export const ETAPAS_ALMACEN = [
 ];
 
 export function etapasPara(via: string | null | undefined) {
+  if (via === "MIXTA") return ETAPAS;
   if (via === "COMPRA_MENOR") return ETAPAS_COMPRA_MENOR;
   if (via === "ALMACEN") return ETAPAS_ALMACEN;
   return ETAPAS;
@@ -39,7 +40,8 @@ export function etapasPara(via: string | null | undefined) {
 export const VIA_LABEL: Record<string, string> = {
   NORMAL: "Proceso normal (cotización y OC/OS)",
   COMPRA_MENOR: "Compra menor",
-  ALMACEN: "Atendido desde almacén"
+  ALMACEN: "Atendido desde almacén",
+  MIXTA: "Mixta (por ítems: OC/OS, compra menor y/o almacén)"
 };
 
 export const MEDIO_PAGO_LABEL: Record<string, string> = {
@@ -64,8 +66,11 @@ export const ESTADOS_ESPECIALES = [
 
 export const ESTADO_LABEL: Record<string, string> = {
   ...Object.fromEntries([...ETAPAS, ...ESTADOS_ESPECIALES].map((e) => [e.value, e.label])),
-  compra_menor: "Comprado (compra menor)"
+  compra_menor: "Comprado (compra menor)",
+  atendida_parcial: "Atendido parcial"
 };
+
+export const AYUDA_PARCIAL = "Parte de los ítems ya se pidió, compró o entregó; faltan otros (ver el detalle por ítem).";
 
 export const ESTADO_ESTILO: Record<string, string> = {
   pendiente: "bg-gray-100 text-gray-600",
@@ -74,6 +79,7 @@ export const ESTADO_ESTILO: Record<string, string> = {
   proveedor_elegido: "bg-amber-50 text-amber-700",
   convertida: "bg-verde-claro text-verde-oscuro",
   compra_menor: "bg-teal-50 text-teal-700",
+  atendida_parcial: "bg-lime-100 text-lime-800",
   atendida: "bg-verde text-white",
   observada: "bg-orange-100 text-orange-700",
   anulada: "bg-red-50 text-red-600"
@@ -91,3 +97,73 @@ export const TIPO_ORDEN_LABEL: Record<string, string> = { COMPRA: "Orden de comp
 export const TIPO_ORDEN_CORTO: Record<string, string> = { COMPRA: "OC", SERVICIO: "OS" };
 
 export const MINIMO_COTIZACIONES = 3;
+
+// ------------------------------------------------------------------ atención por ítem
+
+export interface AtencionItem {
+  id: string;
+  item_id: string;
+  tipo: "ORDEN" | "COMPRA_MENOR" | "ALMACEN" | "ANULADO";
+  cantidad: number;
+  orden_id: string | null;
+  orden_numero: number | null;
+  orden_tipo: string | null;
+  orden_anulada: boolean;
+  proveedor: string | null;
+  entregado: boolean;
+  entregado_at: string | null;
+  comentario: string | null;
+  usuario_nombre: string | null;
+  created_at: string;
+}
+
+export interface EstadoItem {
+  atendida: number;
+  pendiente: number;
+  entregada: number;
+  anulada: number;
+  clave: "pendiente" | "parcial" | "pedido" | "comprado" | "entregado" | "anulado";
+  etiqueta: string;
+  estilo: string;
+}
+
+const redondear = (v: number) => Math.round(v * 1000) / 1000;
+export const fmtCant = (v: number) => String(redondear(Number(v) || 0));
+
+/** Estado de un ítem a partir de sus atenciones vigentes (las de órdenes anuladas no cuentan). */
+export function estadoItem(cantidad: number, atenciones: AtencionItem[]): EstadoItem {
+  const vig = atenciones.filter((a) => !a.orden_anulada);
+  const suma = (f: (a: AtencionItem) => boolean) => redondear(vig.filter(f).reduce((s, a) => s + Number(a.cantidad), 0));
+  const atendida = suma(() => true);
+  const anulada = suma((a) => a.tipo === "ANULADO");
+  const entregada = suma((a) => a.tipo !== "ANULADO" && a.entregado);
+  const pendiente = Math.max(0, redondear(Number(cantidad) - atendida));
+  const cant = Number(cantidad);
+  let clave: EstadoItem["clave"];
+  if (anulada >= cant) clave = "anulado";
+  else if (atendida <= 0) clave = "pendiente";
+  else if (pendiente > 0) clave = "parcial";
+  else if (entregada + anulada >= cant) clave = "entregado";
+  else if (vig.some((a) => a.tipo === "ORDEN" && !a.entregado)) clave = "pedido";
+  else clave = "comprado";
+  const ETQ: Record<EstadoItem["clave"], [string, string]> = {
+    pendiente: ["Pendiente", "bg-gray-100 text-gray-600"],
+    parcial: [`Parcial: ${fmtCant(atendida)} de ${fmtCant(cant)}`, "bg-lime-100 text-lime-800"],
+    pedido: ["Pedido al proveedor", "bg-verde-claro text-verde-oscuro"],
+    comprado: ["Comprado, por entregar", "bg-teal-50 text-teal-700"],
+    entregado: ["Entregado", "bg-verde text-white"],
+    anulado: ["Anulado", "bg-red-50 text-red-600"]
+  };
+  return { atendida, pendiente, entregada, anulada, clave, etiqueta: ETQ[clave][0], estilo: ETQ[clave][1] };
+}
+
+/** Texto corto de una atención: "OC N° 276 · Rodamientos del Sur" */
+export function textoAtencion(a: AtencionItem) {
+  if (a.tipo === "ORDEN") {
+    const t = TIPO_ORDEN_CORTO[a.orden_tipo || "COMPRA"] || "OC";
+    return `${t} N° ${a.orden_numero ?? "—"}${a.proveedor ? ` · ${a.proveedor}` : ""}${a.orden_anulada ? " (orden anulada)" : ""}`;
+  }
+  if (a.tipo === "COMPRA_MENOR") return `Compra menor${a.proveedor ? ` · ${a.proveedor}` : ""}`;
+  if (a.tipo === "ALMACEN") return "Desde almacén";
+  return `Anulado${a.comentario ? `: ${a.comentario}` : ""}`;
+}
