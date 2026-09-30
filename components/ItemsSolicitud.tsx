@@ -34,7 +34,8 @@ export default function ItemsSolicitud({
   limites,
   compras,
   avisos,
-  totalAreaMes
+  totalAreaMes,
+  elecciones = {}
 }: {
   solicitudId: string;
   estado: string;
@@ -45,6 +46,8 @@ export default function ItemsSolicitud({
   compras: CompraMenor[];
   avisos: AvisoFraccionamiento[];
   totalAreaMes: string;
+  /** proveedor elegido en el cuadro comparativo, por ítem (solo compras) */
+  elecciones?: Record<string, string>;
 }) {
   const router = useRouter();
   const [sel, setSel] = useState<Record<string, string>>({});
@@ -175,6 +178,10 @@ export default function ItemsSolicitud({
                       )}
                     </div>
                   </div>
+
+                  {esCompras && elecciones[it.id] && est.pendiente > 0 && (
+                    <p className="text-[11px] text-verde-oscuro mt-1">Proveedor elegido: {elecciones[it.id]}</p>
+                  )}
 
                   {marcado && (
                     <div className="mt-2 flex items-center gap-2 text-xs">

@@ -58,15 +58,36 @@ export default async function SolicitudDetallePage({ params }: { params: Promise
   const ordenes = Array.from(ordenesMap.values());
 
   let cotizaciones: any[] = [];
+  let cotItems: any[] = [];
   let proveedores: any[] = [];
   if (esCompras) {
-    const [{ data: cots }, { data: provs }] = await Promise.all([
+    const [{ data: cots }, { data: cis }, { data: provs }] = await Promise.all([
       supabase.from("solicitud_cotizaciones").select("*").eq("solicitud_id", id).order("created_at", { ascending: true }),
+      supabase
+        .from("solicitud_cotizacion_items")
+        .select("id, cotizacion_id, item_id, cantidad, precio_unitario, elegido, justificacion, motivo_excepcion")
+        .eq("solicitud_id", id),
       supabase.from("proveedores").select("id, razon_social, ruc").eq("activo", true).order("razon_social", { ascending: true })
     ]);
     cotizaciones = cots || [];
+    cotItems = cis || [];
     proveedores = provs || [];
   }
+  const elecciones: Record<string, string> = {};
+  for (const ci of cotItems.filter((x: any) => x.elegido)) {
+    const c = cotizaciones.find((x: any) => x.id === ci.cotizacion_id);
+    if (!c) continue;
+    const pu = ci.precio_unitario === null ? null : c.incluye_igv ? Number(ci.precio_unitario) / 1.18 : Number(ci.precio_unitario);
+    elecciones[ci.item_id] = `${c.proveedor_nombre}${pu !== null ? ` · ${c.moneda === "DOLARES" ? "US$" : "S/"} ${pu.toFixed(2)} c/u sin IGV` : ""}`;
+  }
+  const itemsParaCotizar = items.map((it: any, idx: number) => ({
+    id: it.id,
+    posicion: idx + 1,
+    descripcion: it.descripcion,
+    cantidad: Number(it.cantidad),
+    um: it.um,
+    pendiente: estadoItem(Number(it.cantidad), atenciones.filter((a) => a.item_id === it.id)).pendiente
+  }));
 
   // ---- compra menor: registros, límite y aviso de fraccionamiento
   let comprasMenores: any[] = [];
@@ -212,6 +233,7 @@ export default async function SolicitudDetallePage({ params }: { params: Promise
         compras={comprasMenores}
         avisos={avisos}
         totalAreaMes={totalAreaMes}
+        elecciones={elecciones}
       />
 
       {esCompras && (cotizaciones.length > 0 || (hayPendientes && solicitud.estado !== "anulada")) && (
@@ -220,9 +242,9 @@ export default async function SolicitudDetallePage({ params }: { params: Promise
             solicitudId={solicitud.id}
             estado={solicitud.estado}
             cotizaciones={cotizaciones}
+            cotItems={cotItems}
+            items={itemsParaCotizar}
             proveedores={proveedores}
-            justificacion={solicitud.justificacion_eleccion}
-            motivoExcepcion={solicitud.motivo_excepcion}
             ordenes={ordenes}
             hayPendientes={hayPendientes}
           />
