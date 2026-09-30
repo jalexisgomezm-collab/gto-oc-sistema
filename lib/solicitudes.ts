@@ -167,3 +167,39 @@ export function textoAtencion(a: AtencionItem) {
   if (a.tipo === "ALMACEN") return "Desde almacén";
   return `Anulado${a.comentario ? `: ${a.comentario}` : ""}`;
 }
+
+// ------------------------------------------------------------------ compra menor en soles o dólares
+
+export type MonedaCM = "SOLES" | "DOLARES";
+export interface LimitesCompraMenor {
+  SOLES: number;
+  DOLARES: number;
+}
+export const LIMITES_CM_DEFECTO: LimitesCompraMenor = { SOLES: 500, DOLARES: 200 };
+export const SIMBOLO_MONEDA: Record<string, string> = { SOLES: "S/", DOLARES: "US$" };
+
+export function dinero(v: number, moneda: string | null | undefined = "SOLES") {
+  return `${SIMBOLO_MONEDA[moneda || "SOLES"] || "S/"} ${Number(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/** Suma por moneda: "S/ 120.00 · US$ 35.00" */
+export function totalesPorMoneda(filas: { monto: number | string; moneda?: string | null }[]) {
+  const t: Record<string, number> = {};
+  for (const f of filas) t[f.moneda || "SOLES"] = (t[f.moneda || "SOLES"] || 0) + Number(f.monto);
+  const partes = (["SOLES", "DOLARES"] as const).filter((m) => t[m]).map((m) => dinero(t[m], m));
+  return partes.length ? partes.join(" · ") : dinero(0);
+}
+
+export const textoLimitesCM = (l: LimitesCompraMenor) =>
+  `menos de S/ ${l.SOLES.toLocaleString("en-US")} o US$ ${l.DOLARES.toLocaleString("en-US")}`;
+
+/** Lee de configuración los límites de compra menor (soles y dólares). */
+export async function obtenerLimitesCompraMenor(supabase: any): Promise<LimitesCompraMenor> {
+  const { data } = await supabase.from("configuracion").select("clave, valor").in("clave", ["compra_menor_limite", "compra_menor_limite_usd"]);
+  const l = { ...LIMITES_CM_DEFECTO };
+  for (const r of (data as any[]) || []) {
+    if (r.clave === "compra_menor_limite" && Number(r.valor) > 0) l.SOLES = Number(r.valor);
+    if (r.clave === "compra_menor_limite_usd" && Number(r.valor) > 0) l.DOLARES = Number(r.valor);
+  }
+  return l;
+}

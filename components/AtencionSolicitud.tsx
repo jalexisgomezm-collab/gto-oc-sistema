@@ -4,12 +4,13 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { COMPROBANTE_LABEL, MEDIO_PAGO_LABEL } from "@/lib/solicitudes";
+import { COMPROBANTE_LABEL, MEDIO_PAGO_LABEL, SIMBOLO_MONEDA, dinero, type LimitesCompraMenor, type MonedaCM } from "@/lib/solicitudes";
 
 export interface CompraMenor {
   id: string;
   fecha: string;
   monto: number;
+  moneda?: string | null;
   proveedor: string;
   medio_pago: string;
   comprobante_tipo: string;
@@ -24,7 +25,7 @@ export interface AvisoFraccionamiento {
   solicitudId: string;
   numero: number;
   fecha: string;
-  monto: number;
+  montoTexto: string;
   coincidencias: string[];
 }
 
@@ -41,7 +42,7 @@ export type ModoAtencion = "" | "compra" | "almacen" | "anular";
 export default function AtencionSolicitud({
   solicitudId,
   estado,
-  limite,
+  limites,
   compras,
   avisos,
   totalAreaMes,
@@ -52,10 +53,10 @@ export default function AtencionSolicitud({
 }: {
   solicitudId: string;
   estado: string;
-  limite: number;
+  limites: LimitesCompraMenor;
   compras: CompraMenor[];
   avisos: AvisoFraccionamiento[];
-  totalAreaMes: number;
+  totalAreaMes: string;
   modo: ModoAtencion;
   setModo: (m: ModoAtencion) => void;
   seleccion: ItemSeleccionado[];
@@ -64,6 +65,9 @@ export default function AtencionSolicitud({
   const router = useRouter();
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
   const [monto, setMonto] = useState("");
+  // si ya hay compras menores en la solicitud, se sigue en la misma moneda
+  const monedaFija = (compras[0]?.moneda as MonedaCM | undefined) || null;
+  const [moneda, setMoneda] = useState<MonedaCM>(monedaFija || "SOLES");
   const [proveedor, setProveedor] = useState("");
   const [medio, setMedio] = useState("CAJA_CHICA");
   const [tipoComp, setTipoComp] = useState("BOLETA");
@@ -77,8 +81,13 @@ export default function AtencionSolicitud({
   const [error, setError] = useState<string | null>(null);
 
   const cerrada = estado === "anulada" || estado === "atendida";
+  const monedaCompras: MonedaCM = monedaFija || "SOLES";
   const gastado = compras.reduce((a, c) => a + Number(c.monto), 0);
-  const disponible = Math.max(0, limite - gastado);
+  const limiteCompras = limites[monedaCompras];
+  const limite = limites[moneda];
+  const gastadoMoneda = compras.filter((c) => (c.moneda || "SOLES") === moneda).reduce((a, c) => a + Number(c.monto), 0);
+  // el total debe quedar por debajo del límite
+  const disponible = Math.max(0, limite - gastadoMoneda);
   const itemsRpc = seleccion.map((s) => ({ item_id: s.item_id, cantidad: s.cantidad }));
   const hayForm = modo !== "" && !cerrada;
 
@@ -96,9 +105,9 @@ export default function AtencionSolicitud({
     setError(null);
     const m = Number(monto);
     if (!m || m <= 0) return setError("Ingresa el monto pagado");
-    if (m > disponible + 0.001) {
+    if (gastadoMoneda + m >= limite - 0.0001) {
       return setError(
-        `El monto supera el límite de compra menor (${soles(limite)}${gastado ? `; ya se gastó ${soles(gastado)}` : ""}). Usa el proceso normal con cotizaciones y OC.`
+        `La compra menor debe ser menor a ${dinero(limite, moneda)} en total${gastadoMoneda ? ` (ya se gastó ${dinero(gastadoMoneda, moneda)})` : ""}. Usa el proceso normal con cotizaciones y OC.`
       );
     }
     if (!proveedor.trim()) return setError("Indica dónde se compró");
@@ -124,7 +133,8 @@ export default function AtencionSolicitud({
         p_fecha: fecha,
         p_observacion: observacion.trim() || null,
         p_entregado: entregado,
-        p_items: itemsRpc
+        p_items: itemsRpc,
+        p_moneda: moneda
       });
       if (errRpc) {
         await supabase.storage.from("documentos-oc").remove([ruta]);
@@ -207,14 +217,14 @@ export default function AtencionSolicitud({
               <Link href={`/solicitudes/${a.solicitudId}`} className="underline">
                 Solicitud N° {a.numero}
               </Link>{" "}
-              · {a.fecha} · {soles(a.monto)} · {a.coincidencias.join(", ")}
+              · {a.fecha} · {a.montoTexto} · {a.coincidencias.join(", ")}
             </p>
           ))}
           <p>Si se repite, conviene juntar el pedido y hacer una sola compra con cotizaciones y OC.</p>
         </div>
       )}
-      {(modo === "compra" || compras.length > 0) && totalAreaMes > 0 && (
-        <p className="text-xs text-gray-500">Compras menores de esta área en los últimos 30 días: {soles(totalAreaMes)}.</p>
+      {(modo === "compra" || compras.length > 0) && totalAreaMes && (
+        <p className="text-xs text-gray-500">Compras menores de esta área en los últimos 30 días: {totalAreaMes}.</p>
       )}
 
       {compras.length > 0 && (
@@ -244,14 +254,14 @@ export default function AtencionSolicitud({
                       {COMPROBANTE_LABEL[c.comprobante_tipo] || c.comprobante_tipo} {c.comprobante_numero || ""} (ver)
                     </button>
                   </td>
-                  <td className="px-3 py-2 text-right whitespace-nowrap">{soles(Number(c.monto))}</td>
+                  <td className="px-3 py-2 text-right whitespace-nowrap">{dinero(Number(c.monto), c.moneda)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
           <p className="text-xs text-gray-500 mt-2">
-            Total {soles(gastado)} de un límite de {soles(limite)}.
-            {!cerrada && disponible > 0 && " Para otra compra, marca los ítems pendientes arriba y elige Compra menor."}
+            Total {dinero(gastado, monedaCompras)}; debe ser menor a {dinero(limiteCompras, monedaCompras)}.
+            {!cerrada && gastado < limiteCompras && " Para otra compra, marca los ítems pendientes arriba y elige Compra menor."}
           </p>
         </div>
       )}
@@ -259,7 +269,7 @@ export default function AtencionSolicitud({
       {modo === "compra" && !cerrada && (
         <form onSubmit={registrarCompra} className="border border-gray-200 rounded-md p-4 space-y-3">
           <p className="text-sm font-medium">
-            Registrar compra menor <span className="text-xs text-gray-400 font-normal">(disponible: {soles(disponible)})</span>
+            Registrar compra menor <span className="text-xs text-gray-400 font-normal">(el total debe ser menor a {dinero(limite, moneda)}{gastadoMoneda ? `; ya se gastó ${dinero(gastadoMoneda, moneda)}` : ""})</span>
           </p>
           {listaSeleccion}
           <div className="grid grid-cols-3 gap-3">
@@ -268,8 +278,20 @@ export default function AtencionSolicitud({
               <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Monto pagado (S/, con IGV)</label>
-              <input type="number" step="0.01" value={monto} onChange={(e) => setMonto(e.target.value)} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm" />
+              <label className="block text-xs text-gray-500 mb-1">Monto pagado (con IGV)</label>
+              <div className="flex gap-1">
+                <select
+                  value={moneda}
+                  onChange={(e) => setMoneda(e.target.value as MonedaCM)}
+                  disabled={!!monedaFija}
+                  title={monedaFija ? "Esta solicitud ya tiene compras en esta moneda" : "Moneda"}
+                  className="border border-gray-300 rounded-md px-2 py-2 text-sm disabled:bg-gray-50"
+                >
+                  <option value="SOLES">S/</option>
+                  <option value="DOLARES">US$</option>
+                </select>
+                <input type="number" step="0.01" value={monto} onChange={(e) => setMonto(e.target.value)} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm" />
+              </div>
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">Medio de pago</label>

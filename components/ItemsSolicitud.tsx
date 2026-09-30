@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { estadoItem, fmtCant, textoAtencion, type AtencionItem } from "@/lib/solicitudes";
+import { estadoItem, fmtCant, textoAtencion, textoLimitesCM, type AtencionItem, type LimitesCompraMenor } from "@/lib/solicitudes";
 import { fechaLima } from "@/lib/fechas";
 import AtencionSolicitud, { type AvisoFraccionamiento, type CompraMenor, type ModoAtencion } from "@/components/AtencionSolicitud";
 
@@ -31,7 +31,7 @@ export default function ItemsSolicitud({
   esCompras,
   items,
   atenciones,
-  limite,
+  limites,
   compras,
   avisos,
   totalAreaMes
@@ -41,10 +41,10 @@ export default function ItemsSolicitud({
   esCompras: boolean;
   items: ItemSolicitud[];
   atenciones: AtencionItem[];
-  limite: number;
+  limites: LimitesCompraMenor;
   compras: CompraMenor[];
   avisos: AvisoFraccionamiento[];
-  totalAreaMes: number;
+  totalAreaMes: string;
 }) {
   const router = useRouter();
   const [sel, setSel] = useState<Record<string, string>>({});
@@ -307,7 +307,7 @@ export default function ItemsSolicitud({
               onClick={() => elegirModo("compra")}
               className={`text-sm px-3 py-1.5 rounded-md border ${modo === "compra" ? "border-verde bg-verde-claro" : "border-gray-300 hover:bg-gray-50"}`}
             >
-              Compra menor (≤ S/ {limite})
+              Compra menor ({textoLimitesCM(limites)})
             </button>
             <button
               type="button"
@@ -340,7 +340,7 @@ export default function ItemsSolicitud({
           <AtencionSolicitud
             solicitudId={solicitudId}
             estado={estado}
-            limite={limite}
+            limites={limites}
             compras={compras}
             avisos={avisos}
             totalAreaMes={totalAreaMes}

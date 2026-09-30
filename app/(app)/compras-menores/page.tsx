@@ -2,20 +2,22 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { obtenerPerfil } from "@/lib/perfil";
-import { AREA_LABEL, COMPROBANTE_LABEL, MEDIO_PAGO_LABEL } from "@/lib/solicitudes";
+import { AREA_LABEL, COMPROBANTE_LABEL, MEDIO_PAGO_LABEL, dinero, obtenerLimitesCompraMenor, textoLimitesCM, totalesPorMoneda } from "@/lib/solicitudes";
 
-const soles = (v: number) => "S/ " + Number(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
 function sumarPor(filas: any[], clave: (r: any) => string) {
-  const m: Record<string, { total: number; n: number }> = {};
+  const m: Record<string, { filas: any[]; n: number; orden: number }> = {};
   for (const r of filas) {
     const k = clave(r);
-    m[k] ||= { total: 0, n: 0 };
-    m[k].total += Number(r.monto);
+    m[k] ||= { filas: [], n: 0, orden: 0 };
+    m[k].filas.push(r);
     m[k].n += 1;
+    m[k].orden += Number(r.monto) * (r.moneda === "DOLARES" ? 3.7 : 1); // solo para ordenar
   }
-  return Object.entries(m).sort((a, b) => b[1].total - a[1].total);
+  return Object.entries(m)
+    .sort((a, b) => b[1].orden - a[1].orden)
+    .map(([k, v]) => [k, { texto: totalesPorMoneda(v.filas), n: v.n }] as [string, { texto: string; n: number }]);
 }
 
 export default async function ComprasMenoresPage({ searchParams }: { searchParams: Promise<{ mes?: string }> }) {
@@ -32,17 +34,17 @@ export default async function ComprasMenoresPage({ searchParams }: { searchParam
   const anterior = m === 1 ? `${anio - 1}-12` : `${anio}-${String(m - 1).padStart(2, "0")}`;
   const posterior = m === 12 ? `${anio + 1}-01` : `${anio}-${String(m + 1).padStart(2, "0")}`;
 
-  const [{ data }, { data: conf }] = await Promise.all([
+  const [{ data }, limites] = await Promise.all([
     supabase
       .from("solicitud_compras_menores")
       .select("*, solicitudes_pedido(id, numero, area, solicitante, proyectos(numero_orden_trabajo, nombre))")
       .gte("fecha", desde)
       .lt("fecha", siguiente)
       .order("fecha", { ascending: false }),
-    supabase.from("configuracion").select("valor").eq("clave", "compra_menor_limite").maybeSingle()
+    obtenerLimitesCompraMenor(supabase)
   ]);
   const filas = (data as any[]) || [];
-  const total = filas.reduce((a, r) => a + Number(r.monto), 0);
+  const total = totalesPorMoneda(filas);
   const porArea = sumarPor(filas, (r) => AREA_LABEL[r.solicitudes_pedido?.area] || r.solicitudes_pedido?.area || "—");
   const porOT = sumarPor(filas, (r) => {
     const p = r.solicitudes_pedido?.proyectos;
@@ -50,7 +52,7 @@ export default async function ComprasMenoresPage({ searchParams }: { searchParam
   });
   const porMedio = sumarPor(filas, (r) => MEDIO_PAGO_LABEL[r.medio_pago] || r.medio_pago);
 
-  const Resumen = ({ titulo, datos }: { titulo: string; datos: [string, { total: number; n: number }][] }) => (
+  const Resumen = ({ titulo, datos }: { titulo: string; datos: [string, { texto: string; n: number }][] }) => (
     <div className="bg-white border border-gray-200 rounded-lg p-4">
       <p className="text-xs font-semibold text-gray-500 uppercase mb-2">{titulo}</p>
       {datos.length === 0 && <p className="text-sm text-gray-400">—</p>}
@@ -60,7 +62,7 @@ export default async function ComprasMenoresPage({ searchParams }: { searchParam
             <span className="truncate">
               {k} <span className="text-xs text-gray-400">({v.n})</span>
             </span>
-            <span className="whitespace-nowrap font-medium">{soles(v.total)}</span>
+            <span className="whitespace-nowrap font-medium">{v.texto}</span>
           </li>
         ))}
       </ul>
@@ -84,8 +86,8 @@ export default async function ComprasMenoresPage({ searchParams }: { searchParam
         </div>
       </div>
       <p className="text-sm text-gray-500 mb-6">
-        Requerimientos atendidos sin cotización ni OC (límite {soles(Number(conf?.valor || 300))} por solicitud). Total del mes:{" "}
-        <b className="text-gray-800">{soles(total)}</b> en {filas.length} compra(s).
+        Requerimientos atendidos sin cotización ni OC (el total por solicitud debe ser {textoLimitesCM(limites)}). Total del mes:{" "}
+        <b className="text-gray-800">{total}</b> en {filas.length} compra(s).
       </p>
 
       <div className="grid grid-cols-3 gap-4 mb-6">
@@ -125,7 +127,7 @@ export default async function ComprasMenoresPage({ searchParams }: { searchParam
                   {COMPROBANTE_LABEL[r.comprobante_tipo] || r.comprobante_tipo} {r.comprobante_numero || ""}
                 </td>
                 <td className="px-4 py-2 text-gray-600">{MEDIO_PAGO_LABEL[r.medio_pago] || r.medio_pago}</td>
-                <td className="px-4 py-2 text-right whitespace-nowrap">{soles(Number(r.monto))}</td>
+                <td className="px-4 py-2 text-right whitespace-nowrap">{dinero(Number(r.monto), r.moneda)}</td>
               </tr>
             ))}
             {filas.length === 0 && (

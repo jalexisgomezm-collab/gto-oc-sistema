@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { obtenerPerfil } from "@/lib/perfil";
-import { AREA_LABEL, ESTADO_LABEL, ESTADO_ESTILO, PRIORIDAD_ESTILO, PRIORIDAD_LABEL, TIPO_ORDEN_CORTO, estadoItem, type AtencionItem } from "@/lib/solicitudes";
+import { AREA_LABEL, ESTADO_LABEL, ESTADO_ESTILO, PRIORIDAD_ESTILO, PRIORIDAD_LABEL, TIPO_ORDEN_CORTO, estadoItem, obtenerLimitesCompraMenor, totalesPorMoneda, LIMITES_CM_DEFECTO, type AtencionItem } from "@/lib/solicitudes";
 import SeguimientoSolicitud from "@/components/SeguimientoSolicitud";
 import CotizacionesSolicitud from "@/components/CotizacionesSolicitud";
 import ItemsSolicitud from "@/components/ItemsSolicitud";
@@ -70,36 +70,43 @@ export default async function SolicitudDetallePage({ params }: { params: Promise
 
   // ---- compra menor: registros, límite y aviso de fraccionamiento
   let comprasMenores: any[] = [];
-  let limite = 300;
+  let limites = { ...LIMITES_CM_DEFECTO };
   let avisos: any[] = [];
-  let totalAreaMes = 0;
+  let totalAreaMes = "";
   if (esCompras) {
     const hace30 = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
-    const [{ data: cms }, { data: conf }, { data: delArea }] = await Promise.all([
+    const [{ data: cms }, lims, { data: delArea }] = await Promise.all([
       supabase.from("solicitud_compras_menores").select("*").eq("solicitud_id", id).order("created_at", { ascending: true }),
-      supabase.from("configuracion").select("valor").eq("clave", "compra_menor_limite").maybeSingle(),
+      obtenerLimitesCompraMenor(supabase),
       supabase
         .from("solicitud_compras_menores")
-        .select("monto, fecha, solicitud_id, solicitudes_pedido!inner(id, numero, area, solicitud_items(descripcion))")
+        .select("monto, moneda, fecha, solicitud_id, solicitudes_pedido!inner(id, numero, area, solicitud_items(descripcion))")
         .eq("solicitudes_pedido.area", solicitud.area)
         .gte("fecha", hace30)
     ]);
     comprasMenores = cms || [];
-    if (conf?.valor) limite = Number(conf.valor) || 300;
+    limites = lims;
+    const filasArea = (delArea as any[]) || [];
+    if (filasArea.length) totalAreaMes = totalesPorMoneda(filasArea);
     const misDescripciones = new Set(items.map((it: any) => String(it.descripcion).trim().toLowerCase()));
     const porSolicitud: Record<string, any> = {};
-    for (const r of (delArea as any[]) || []) {
-      totalAreaMes += Number(r.monto);
+    for (const r of filasArea) {
       if (r.solicitud_id === id) continue;
       const sp = r.solicitudes_pedido;
       const coinc = (sp?.solicitud_items || [])
         .map((x: any) => String(x.descripcion).trim())
         .filter((d: string) => misDescripciones.has(d.toLowerCase()));
       if (coinc.length === 0) continue;
-      const a = (porSolicitud[r.solicitud_id] ||= { solicitudId: r.solicitud_id, numero: sp.numero, fecha: r.fecha, monto: 0, coincidencias: coinc });
-      a.monto += Number(r.monto);
+      const a = (porSolicitud[r.solicitud_id] ||= { solicitudId: r.solicitud_id, numero: sp.numero, fecha: r.fecha, filas: [], coincidencias: coinc });
+      a.filas.push(r);
     }
-    avisos = Object.values(porSolicitud);
+    avisos = Object.values(porSolicitud).map((a: any) => ({
+      solicitudId: a.solicitudId,
+      numero: a.numero,
+      fecha: a.fecha,
+      montoTexto: totalesPorMoneda(a.filas),
+      coincidencias: a.coincidencias
+    }));
   }
   const via = solicitud.via_atencion as string | null;
 
@@ -201,7 +208,7 @@ export default async function SolicitudDetallePage({ params }: { params: Promise
         esCompras={esCompras}
         items={items}
         atenciones={atenciones}
-        limite={limite}
+        limites={limites}
         compras={comprasMenores}
         avisos={avisos}
         totalAreaMes={totalAreaMes}
