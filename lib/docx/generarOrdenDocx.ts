@@ -12,504 +12,400 @@ import {
   ShadingType,
   ImageRun,
   Footer,
-  PageNumber
+  Header,
+  HorizontalPositionRelativeFrom,
+  VerticalPositionRelativeFrom,
+  TextWrappingType,
+  PageNumber,
+  TableLayoutType
 } from "docx";
 import fs from "node:fs";
 import path from "node:path";
-import { EMPRESA, VERDE_HEX, GRIS_ZEBRA_HEX, GRIS_TEXTO_HEX, FUENTE } from "@/lib/empresa";
+import { EMPRESA, GRIS_TEXTO_HEX, FUENTE, VERDE_HEX, VERDE_CLARO_HEX } from "@/lib/empresa";
 import { montoALetras } from "@/lib/numeroALetras";
 import type { OrdenCompraData } from "@/lib/types";
 
+// Formato con recuadros sobre la hoja membretada de GTO PERU, igual al PDF
 const CM_A_TWIPS = 566.929;
 const cm = (v: number) => Math.round(v * CM_A_TWIPS);
-const pt = (v: number) => Math.round(v * 20); // spacing en twips (20 = 1pt)
-const money = (v: number) =>
-  v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const pt = (v: number) => Math.round(v * 20);
+const money = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const NO_BORDER = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" };
-const NO_BORDERS_SET = { top: NO_BORDER, bottom: NO_BORDER, left: NO_BORDER, right: NO_BORDER, insideHorizontal: NO_BORDER, insideVertical: NO_BORDER };
-const THIN_BORDER = { style: BorderStyle.SINGLE, size: 4, color: "D9D9D9" };
-const THIN_BORDERS_SET = { top: THIN_BORDER, bottom: THIN_BORDER, left: THIN_BORDER, right: THIN_BORDER, insideHorizontal: THIN_BORDER, insideVertical: THIN_BORDER };
+const VERDE = VERDE_HEX;
+const VERDE_CLARO = VERDE_CLARO_HEX;
+const VERDE_OSCURO = "016B39";
+const BLANCO = "FFFFFF";
+const GRIS_CAB = VERDE;
+const NEGRO = { style: BorderStyle.SINGLE, size: 6, color: "8FBFA3" };
+const NINGUNO = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" };
+const B_NEGRO = { top: NEGRO, bottom: NEGRO, left: NEGRO, right: NEGRO };
+const B_NINGUNO = { top: NINGUNO, bottom: NINGUNO, left: NINGUNO, right: NINGUNO };
+const T_NINGUNO = { ...B_NINGUNO, insideHorizontal: NINGUNO, insideVertical: NINGUNO };
+const T_NEGRO = { ...B_NEGRO, insideHorizontal: NEGRO, insideVertical: NEGRO };
 
-function shading(hex: string) {
-  return { type: ShadingType.CLEAR, fill: hex, color: "auto" };
+function run(text: string, o: { bold?: boolean; italics?: boolean; size?: number; color?: string } = {}) {
+  return new TextRun({ text, bold: !!o.bold, italics: !!o.italics, size: Math.round((o.size ?? 8) * 2), font: FUENTE, color: o.color });
 }
-
-function run(text: string, opts: { bold?: boolean; italics?: boolean; size?: number; color?: string } = {}) {
-  return new TextRun({
-    text,
-    bold: opts.bold ?? false,
-    italics: opts.italics ?? false,
-    size: Math.round((opts.size ?? 8) * 2),
-    font: FUENTE,
-    color: opts.color
-  });
+function par(children: TextRun[], o: { align?: (typeof AlignmentType)[keyof typeof AlignmentType]; after?: number; before?: number } = {}) {
+  return new Paragraph({ alignment: o.align, spacing: { before: pt(o.before ?? 0), after: pt(o.after ?? 2) }, children });
 }
-
-function simplePara(
-  text: string,
-  opts: { bold?: boolean; size?: number; align?: (typeof AlignmentType)[keyof typeof AlignmentType]; color?: string; spaceBefore?: number; spaceAfter?: number } = {}
+/** "Etiqueta: valor" en negrita + normal; los saltos de línea del valor se respetan. */
+function filaDato(label: string, valor: string, size = 8) {
+  const partes = (valor || "—").split("\n");
+  const runs: TextRun[] = [run(`${label} `, { bold: true, size, color: VERDE_OSCURO })];
+  partes.forEach((p, i) => runs.push(new TextRun({ text: p, size: size * 2, font: FUENTE, break: i > 0 ? 1 : undefined })));
+  return par(runs, { after: 2 });
+}
+function celda(
+  children: (Paragraph | Table)[],
+  o: { w: number; bordes?: "negro" | "ninguno"; fill?: string; valign?: (typeof VerticalAlign)[keyof typeof VerticalAlign]; margen?: number }
 ) {
-  return new Paragraph({
-    alignment: opts.align,
-    spacing: { before: pt(opts.spaceBefore ?? 0), after: pt(opts.spaceAfter ?? 2) },
-    children: [run(text, { bold: opts.bold, size: opts.size, color: opts.color })]
-  });
-}
-
-function labelLine(label: string, value: string, opts: { size?: number; spaceAfter?: number; bold?: boolean } = {}) {
-  const size = opts.size ?? 8;
-  return new Paragraph({
-    spacing: { after: pt(opts.spaceAfter ?? 2) },
-    children: [run(`${label}: `, { bold: true, size }), run(value || "", { size, bold: opts.bold })]
-  });
-}
-
-function cell(
-  children: Paragraph[] | Table[],
-  opts: {
-    widthCm?: number;
-    shadeHex?: string;
-    borders?: boolean;
-    valign?: (typeof VerticalAlign)[keyof typeof VerticalAlign];
-    columnSpan?: number;
-  } = {}
-) {
+  const m = o.margen ?? 70;
   return new TableCell({
-    children: children as Paragraph[],
-    width: opts.widthCm ? { size: cm(opts.widthCm), type: WidthType.DXA } : undefined,
-    shading: opts.shadeHex ? shading(opts.shadeHex) : undefined,
-    borders: opts.borders === false ? NO_BORDERS_SET : THIN_BORDERS_SET,
-    verticalAlign: opts.valign,
-    columnSpan: opts.columnSpan
+    children,
+    width: { size: o.w, type: WidthType.DXA },
+    borders: o.bordes === "negro" ? B_NEGRO : B_NINGUNO,
+    shading: o.fill || o.bordes === "negro" ? { type: ShadingType.CLEAR, fill: o.fill || BLANCO, color: "auto" } : undefined,
+    verticalAlign: o.valign,
+    margins: { top: m, bottom: m, left: m + 30, right: m + 30 }
   });
 }
-
-function noBorderTable(rows: TableRow[], colWidthsCm: number[]) {
+function tabla(filas: TableRow[], anchos: number[], bordes: "negro" | "ninguno" = "ninguno") {
   return new Table({
-    rows,
-    width: { size: cm(colWidthsCm.reduce((a, b) => a + b, 0)), type: WidthType.DXA },
-    columnWidths: colWidthsCm.map(cm),
-    borders: NO_BORDERS_SET
+    rows: filas,
+    width: { size: anchos.reduce((a, b) => a + b, 0), type: WidthType.DXA },
+    columnWidths: anchos,
+    layout: TableLayoutType.FIXED,
+    borders: bordes === "negro" ? T_NEGRO : T_NINGUNO
   });
 }
-
-function sectionBar(cw: number, texto: string) {
-  return new Table({
-    rows: [
-      new TableRow({
-        children: [
-          new TableCell({
-            width: { size: cm(cw), type: WidthType.DXA },
-            shading: shading(VERDE_HEX),
-            borders: NO_BORDERS_SET,
-            verticalAlign: VerticalAlign.CENTER,
-            margins: { top: 60, bottom: 60, left: 100, right: 100 },
-            children: [new Paragraph({ children: [run(texto, { bold: true, size: 9.5, color: "FFFFFF" })] })]
-          })
-        ]
-      })
-    ],
-    width: { size: cm(cw), type: WidthType.DXA },
-    columnWidths: [cm(cw)],
-    borders: NO_BORDERS_SET
-  });
-}
+const vacio = (after = 0) => new Paragraph({ spacing: { before: 0, after: pt(after) }, children: [] });
 
 export async function generarOrdenDocx(data: OrdenCompraData): Promise<Buffer> {
+  const esServicio = data.tipo === "SERVICIO";
   const numeroPadded = String(data.numero).padStart(6, "0");
   const prov = data.proveedor;
   const moneda = data.moneda || "SOLES";
   const monedaSym = moneda.toString().toUpperCase().startsWith("DOLAR") || moneda.toUpperCase().startsWith("USD") ? "US$" : "S/";
   const monedaTexto = monedaSym === "US$" ? "DÓLARES" : "SOLES";
 
-  const marginTop = cm(0.8);
-  const marginBottom = cm(1.0);
-  const marginLeft = cm(1.3);
-  const marginRight = cm(1.3);
-  const pageWidthTwips = cm(21.0); // A4
-  const cw = (pageWidthTwips - marginLeft - marginRight) / CM_A_TWIPS; // ancho útil en "cm"
+  const mLR = cm(1.05);
+  const ANCHO = cm(21.0) - mLR * 2; // ancho útil en twips
 
-  // ---------------------------------------------------------------- logo
-  const logoPath = path.join(process.cwd(), "public", "logo-gto.png");
-  let logoImage: ImageRun | null = null;
-  if (fs.existsSync(logoPath)) {
-    const logoBuf = fs.readFileSync(logoPath);
-    const widthCm = 6.2;
-    const heightCm = widthCm / 3.537;
-    logoImage = new ImageRun({
-      data: logoBuf,
-      transformation: {
-        width: Math.round((widthCm / 2.54) * 96),
-        height: Math.round((heightCm / 2.54) * 96)
-      },
-      type: "png"
-    });
-  }
-
-  const headerTable = noBorderTable(
-    [
-      new TableRow({
-        children: [
-          cell([new Paragraph({ children: logoImage ? [logoImage] : [] })], { widthCm: cw * 0.52, valign: VerticalAlign.TOP, borders: false }),
-          cell(
-            [
-              new Paragraph({
-                alignment: AlignmentType.RIGHT,
-                children: [run(data.tipo === "SERVICIO" ? "ORDEN DE SERVICIO" : "ORDEN DE COMPRA", { bold: true, size: 19, color: VERDE_HEX })]
-              }),
-              new Paragraph({
-                alignment: AlignmentType.RIGHT,
-                spacing: { before: pt(1) },
-                children: [run(`N° ${numeroPadded}`, { bold: true, size: 13, color: VERDE_HEX })]
-              }),
-              new Paragraph({
-                alignment: AlignmentType.RIGHT,
-                spacing: { before: pt(1) },
-                children: [run(`R.U.C. ${EMPRESA.ruc}`, { size: 9 })]
-              })
-            ],
-            { widthCm: cw * 0.48, valign: VerticalAlign.TOP, borders: false }
-          )
-        ]
-      })
-    ],
-    [cw * 0.52, cw * 0.48]
-  );
-
-  // ------------------------------------------------- bloque de empresa
-  const bloqueEmpresa: Paragraph[] = [
-    labelLine("Sede fiscal", EMPRESA.domicilioFiscal, { size: 7.5, spaceAfter: 1 }),
-    labelLine("Sede operativa", EMPRESA.sedeOperativa, { size: 7.5, spaceAfter: 1 }),
-    simplePara(`Tel: ${EMPRESA.celulares}   |   ${EMPRESA.correos.split(" | ")[0]}`, { size: 7.5, spaceAfter: 1 }),
-    simplePara(EMPRESA.web, { size: 7.5, spaceAfter: 4 })
-  ];
-
-  const divider = new Paragraph({
-    spacing: { before: pt(2), after: pt(8) },
-    border: { bottom: { style: BorderStyle.SINGLE, size: 16, color: VERDE_HEX, space: 1 } },
-    children: []
-  });
-
-  // -------------------------------------------------- tabla 2 col x 6 filas
-  const izquierda: [string, string][] = [
-    ["R.U.C. / DNI", prov.ruc || ""],
-    ["Razón social", prov.razon_social || ""],
-    ["Dirección", prov.direccion || ""],
-    ["Contacto", prov.contacto || ""],
-    ["Celular", prov.telefono || "-"],
-    ["Correo", prov.email || "-"]
-  ];
-  const derecha: [string, string][] = [
-    ["Tipo de proveedor", "NACIONAL"],
-    ["Fecha de emisión", data.fecha_emision || ""],
-    ["Centro de costos", data.centro_costos || "-"],
-    ["Referencia de cotización", data.doc_relacionado || "-"],
-    ["Comprador", data.comprador || "-"],
-    ["Moneda", moneda === "DOLARES" ? "DÓLARES (US$)" : "SOLES (S/)"]
-  ];
-
-  const wLabelI = cw * 0.16;
-  const wValueI = cw * 0.34;
-  const wLabelD = cw * 0.2;
-  const wValueD = cw * 0.3;
-
-  const infoRows = izquierda.map((_, i) => {
-    const shaded = i % 2 === 0;
-    const fill = shaded ? GRIS_ZEBRA_HEX : undefined;
-    const [labelI, valorI] = izquierda[i];
-    const [labelD, valorD] = derecha[i];
-    return new TableRow({
-      children: [
-        cell([simplePara(labelI, { bold: true, size: 8, spaceAfter: 0 })], { widthCm: wLabelI, shadeHex: fill, valign: VerticalAlign.CENTER }),
-        cell([simplePara(valorI, { size: 8, spaceAfter: 0 })], { widthCm: wValueI, shadeHex: fill, valign: VerticalAlign.CENTER }),
-        cell([simplePara(labelD, { bold: true, size: 8, spaceAfter: 0 })], { widthCm: wLabelD, shadeHex: fill, valign: VerticalAlign.CENTER }),
-        cell([simplePara(valorD, { size: 8, spaceAfter: 0 })], { widthCm: wValueD, shadeHex: fill, valign: VerticalAlign.CENTER })
-      ]
-    });
-  });
-
-  const infoTable = new Table({
-    rows: infoRows,
-    width: { size: cm(cw), type: WidthType.DXA },
-    columnWidths: [wLabelI, wValueI, wLabelD, wValueD].map(cm),
-    borders: THIN_BORDERS_SET
-  });
-
-  // -------------------------------------------------------- ítems
+  // ------------------------------------------------------------ cálculos
   const items = data.items;
   const incluirCodigo = items.some((it) => (it.codigo || "").toString().trim() !== "");
-
-  const headers = incluirCodigo
-    ? ["ÍTEM", "CÓDIGO", "DESCRIPCIÓN", "CANT.", "U.M.", "ENTREGA", `V. UNIT. (${monedaSym})`, `IMPORTE (${monedaSym})`]
-    : ["ÍTEM", "DESCRIPCIÓN", "CANT.", "U.M.", "ENTREGA", `V. UNIT. (${monedaSym})`, `IMPORTE (${monedaSym})`];
-  const colRatios = incluirCodigo
-    ? [0.06, 0.09, 0.32, 0.07, 0.07, 0.1, 0.13, 0.16]
-    : [0.06, 0.36, 0.07, 0.07, 0.1, 0.15, 0.19];
-  const colW = colRatios.map((w) => cw * w);
-
-  const headerRow = new TableRow({
-    tableHeader: true,
-    children: headers.map(
-      (h, j) =>
-        new TableCell({
-          width: { size: cm(colW[j]), type: WidthType.DXA },
-          shading: shading(VERDE_HEX),
-          borders: THIN_BORDERS_SET,
-          verticalAlign: VerticalAlign.CENTER,
-          children: [
-            new Paragraph({
-              alignment: h === "DESCRIPCIÓN" ? AlignmentType.LEFT : AlignmentType.CENTER,
-              children: [run(h, { bold: true, size: 7.5, color: "FFFFFF" })]
-            })
-          ]
-        })
-    )
-  });
-
   let opGravadas = 0;
-  const itemRows = items.map((item, idx) => {
+  const filas = items.map((item, idx) => {
     const cant = Number(item.cantidad);
     const vunit = Number(item.valor_unitario);
     const vtotal = Math.round(cant * vunit * 100) / 100;
     opGravadas += vtotal;
-    const entrega = item.entrega || data.fecha_entrega || "POR COORDINAR";
-
-    const values: { text: string; align: (typeof AlignmentType)[keyof typeof AlignmentType]; bold?: boolean; size?: number }[] = [
-      { text: String(idx + 1), align: AlignmentType.CENTER }
-    ];
-    if (incluirCodigo) values.push({ text: item.codigo || "", align: AlignmentType.CENTER });
-    values.push({ text: item.descripcion, align: AlignmentType.LEFT });
-    values.push({ text: `${cant}`, align: AlignmentType.CENTER });
-    values.push({ text: item.um || "UND", align: AlignmentType.CENTER });
-    values.push({ text: entrega, align: AlignmentType.CENTER, size: 7.5 });
-    values.push({ text: money(vunit), align: AlignmentType.RIGHT });
-    values.push({ text: money(vtotal), align: AlignmentType.RIGHT, bold: true });
-
-    return new TableRow({
-      children: values.map(
-        (v, j) =>
-          new TableCell({
-            width: { size: cm(colW[j]), type: WidthType.DXA },
-            borders: THIN_BORDERS_SET,
-            verticalAlign: VerticalAlign.CENTER,
-            children: [new Paragraph({ alignment: v.align, children: [run(v.text, { bold: v.bold, size: v.size ?? 8 })] })]
-          })
-      )
-    });
+    return { idx, cant, vunit, vtotal, entrega: item.entrega || data.fecha_entrega || "Por coordinar", um: item.um || "UND", descripcion: item.descripcion, codigo: item.codigo || "" };
   });
-
-  const itemsTable = new Table({
-    rows: [headerRow, ...itemRows],
-    width: { size: cm(colW.reduce((a, b) => a + b, 0)), type: WidthType.DXA },
-    columnWidths: colW.map(cm),
-    borders: THIN_BORDERS_SET
-  });
-
   const subtotalItems = Math.round(opGravadas * 100) / 100;
   const descuento = Math.round((data.descuento || 0) * 100) / 100;
   opGravadas = Math.round((subtotalItems - descuento) * 100) / 100;
   const igv = Math.round(opGravadas * 0.18 * 100) / 100;
   const total = Math.round((opGravadas + igv) * 100) / 100;
-
-  // ------------------------------------------------------- totales
-  const etiquetas: [string, number, boolean][] = [];
+  const son = montoALetras(total, monedaTexto);
+  const totales: [string, number, boolean][] = [];
   if (descuento) {
-    etiquetas.push(["SUBTOTAL", subtotalItems, false]);
-    etiquetas.push(["DESCUENTO", -descuento, false]);
+    totales.push(["Subtotal", subtotalItems, false]);
+    totales.push(["Descuento", -descuento, false]);
   }
-  etiquetas.push(["OPERACIÓN GRAVADA", opGravadas, false]);
-  etiquetas.push(["I.G.V. (18%)", igv, false]);
-  etiquetas.push(["IMPORTE TOTAL", total, true]);
+  totales.push(["Operación gravada", opGravadas, false]);
+  totales.push(["I.G.V. (18%)", igv, false]);
+  totales.push(["IMPORTE TOTAL", total, true]);
 
-  const innerW1 = cw * 0.48 * 0.55;
-  const innerW2 = cw * 0.48 * 0.45;
-  const innerRows = etiquetas.map(([label, val, destacado]) => {
-    const fill = destacado ? VERDE_HEX : GRIS_ZEBRA_HEX;
-    const color = destacado ? "FFFFFF" : undefined;
-    return new TableRow({
+  const lugar = data.lugar_entrega || (data.origen || data.destino ? `${data.origen || ""} → ${data.destino || ""}` : "");
+  const correo1 = EMPRESA.correos.split(" | ")[0];
+  const correoFact = EMPRESA.correos.split(" | ")[1] || correo1;
+
+  // ------------------------------------------------------------ membrete (fondo de página: logo arriba, contactos al pie)
+  const fondoPath = path.join(process.cwd(), "public", "membrete-gto.jpg");
+  const titulo = [
+    new Paragraph({
+      alignment: AlignmentType.RIGHT,
+      spacing: { before: 0, after: 0 },
+      children: [run(esServicio ? "ORDEN DE SERVICIO" : "ORDEN DE COMPRA", { bold: true, size: 16, color: VERDE })]
+    }),
+    par([run(`GTO PERU S.A.C. · R.U.C. ${EMPRESA.ruc}`, { bold: true, size: 9.5, color: "333333" })], { align: AlignmentType.RIGHT, after: 3 }),
+    new Paragraph({
+      alignment: AlignmentType.RIGHT,
+      spacing: { before: 0, after: 0 },
       children: [
-        cell([simplePara(label, { bold: true, size: destacado ? 9 : 8.5, color, spaceAfter: 0 })], {
-          widthCm: innerW1,
-          shadeHex: fill,
-          valign: VerticalAlign.CENTER,
-          borders: false
-        }),
-        cell(
-          [simplePara(`${monedaSym} ${money(val)}`, { bold: destacado, size: destacado ? 9 : 8.5, color, align: AlignmentType.RIGHT, spaceAfter: 0 })],
-          { widthCm: innerW2, shadeHex: fill, valign: VerticalAlign.CENTER, borders: false }
-        )
+        new TextRun({ text: `  N° ${numeroPadded}  `, bold: true, size: 22, font: FUENTE, color: BLANCO, shading: { type: ShadingType.CLEAR, fill: VERDE, color: "auto" } })
       ]
-    });
+    })
+  ];
+  // el título va en el encabezado para que se repita en cada página, a la derecha del logo del membrete
+  const membrete = new Header({
+    children: [
+      new Paragraph({
+        spacing: { before: 0, after: 0 },
+        children: fs.existsSync(fondoPath)
+          ? [
+              new ImageRun({
+                type: "jpg",
+                data: fs.readFileSync(fondoPath),
+                transformation: { width: 794, height: 1123 },
+                floating: {
+                  horizontalPosition: { relative: HorizontalPositionRelativeFrom.PAGE, offset: 0 },
+                  verticalPosition: { relative: VerticalPositionRelativeFrom.PAGE, offset: 0 },
+                  behindDocument: true,
+                  allowOverlap: true,
+                  wrap: { type: TextWrappingType.NONE }
+                },
+                altText: { title: "Membrete GTO PERU", description: "Membrete GTO PERU", name: "Membrete" }
+              })
+            ]
+          : []
+      }),
+      ...titulo
+    ]
   });
-  const innerTotalsTable = noBorderTable(innerRows, [innerW1, innerW2]);
 
-  const totalsWrap = noBorderTable(
+  const c1 = cm(2.6), c2 = cm(3.6), c3 = ANCHO - c1 - c2;
+  const referencia = tabla(
     [
       new TableRow({
         children: [
-          cell([new Paragraph({ children: [] })], { widthCm: cw * 0.52, borders: false }),
-          cell([innerTotalsTable as unknown as Paragraph], { widthCm: cw * 0.48, borders: false })
+          celda([par([run(esServicio ? "Orden Servicio:" : "Orden Compra:", { bold: true, size: 9, color: VERDE_OSCURO })], { after: 0 })], { w: c1, margen: 10 }),
+          celda([par([run(numeroPadded, { size: 9 })], { after: 0 })], { w: c2, margen: 10 }),
+          celda([par([run(`Moneda: ${moneda === "DOLARES" ? "USD - Dólar americano" : "PEN - Sol peruano"}`, { bold: true, size: 9 })], { after: 0 })], { w: c3, margen: 10 })
+        ]
+      }),
+      new TableRow({
+        children: [
+          celda([par([run("Fecha emisión:", { bold: true, size: 9, color: VERDE_OSCURO })], { after: 0 })], { w: c1, margen: 10 }),
+          celda([par([run(data.fecha_emision || "", { size: 9 })], { after: 0 })], { w: c2, margen: 10 }),
+          celda([par([run(`Forma de pago: ${data.forma_pago || "Por coordinar"}`, { size: 9 })], { after: 0 })], { w: c3, margen: 10 })
         ]
       })
     ],
-    [cw * 0.52, cw * 0.48]
+    [c1, c2, c3]
   );
 
-  // ------------------------------------------------------------ SON
-  const son = montoALetras(total, monedaTexto);
-  const sonPara = new Paragraph({
-    spacing: { before: pt(6), after: pt(8) },
-    children: [run("SON: ", { bold: true, size: 8.5 }), run(`${son}.`, { italics: true, size: 8.5 })]
-  });
-
-  // ---------------------------------------- CONDICIONES COMERCIALES
-  const condicionesComerciales: Paragraph[] = [];
-  if (data.forma_pago) condicionesComerciales.push(labelLine("Forma de pago", data.forma_pago, { size: 8.5 }));
-  if (data.lugar_entrega || data.origen || data.destino) {
-    condicionesComerciales.push(
-      labelLine("Lugar de recojo y entrega", data.lugar_entrega || `${data.origen || ""} → ${data.destino || ""}`, { size: 8.5 })
+  // ------------------------------------------------------------ recuadros
+  const wIzq = Math.round(ANCHO * 0.55), wGap = cm(0.4), wDer = ANCHO - wIzq - wGap;
+  const filaCajas = (izq: Paragraph[], der: Paragraph[]) =>
+    tabla(
+      [
+        new TableRow({
+          children: [
+            celda(izq, { w: wIzq, bordes: "negro", valign: VerticalAlign.TOP }),
+            celda([vacio()], { w: wGap }),
+            celda(der, { w: wDer, bordes: "negro", valign: VerticalAlign.TOP })
+          ]
+        })
+      ],
+      [wIzq, wGap, wDer]
     );
-  }
-  condicionesComerciales.push(labelLine("Plazo de entrega", data.fecha_entrega || "Por coordinar con el proveedor.", { size: 8.5 }));
-  if (data.garantia) condicionesComerciales.push(labelLine("Garantía", data.garantia, { size: 8.5 }));
-  if (data.penalidad) condicionesComerciales.push(labelLine("Penalidad por retraso en la entrega", data.penalidad, { size: 8.5 }));
-
-  // ---------------------------------------------------- CUENTAS BANCARIAS
-  const cuentas = prov.cuentas_bancarias || [];
-  const cuentasBancarias: Paragraph[] = [];
-  if (!cuentas.length) {
-    cuentasBancarias.push(simplePara("(Pendiente de proporcionar por el proveedor)", { size: 8.5 }));
-  }
-  for (const c of cuentas) {
-    let linea = `${c.banco || ""}: ${c.cuenta || ""}`;
-    if (c.cci) linea += `  |  CCI: ${c.cci}`;
-    cuentasBancarias.push(simplePara(linea, { size: 8.5, spaceAfter: 3 }));
-  }
-  if (prov.detraccion) cuentasBancarias.push(labelLine("Detracción", prov.detraccion, { size: 8.5 }));
-
-  // ---------------------------------------------------------- OBSERVACIONES
-  const condicionesExtra = data.condiciones_especiales || [];
-  const observaciones = (data.observaciones || "").trim();
-  const hayObservaciones = condicionesExtra.length > 0 || !!data.garantia || !!data.penalidad || !!observaciones;
-
-  const observacionesParas: Paragraph[] = [];
-  for (const linea of condicionesExtra) observacionesParas.push(simplePara(linea, { size: 8.5, spaceAfter: 2 }));
-  if (observaciones) observacionesParas.push(simplePara(observaciones, { size: 8.5, spaceAfter: 4 }));
-  observacionesParas.push(
-    new Paragraph({
-      spacing: { after: pt(2) },
-      children: [
-        run("Aceptación de la orden: ", { bold: true, size: 8 }),
-        run(
-          "El proveedor deberá confirmar la recepción y aceptación de esta orden dentro de un plazo máximo de dos (2) días calendario contados desde su envío. Si no comunica observaciones o rechazo dentro de dicho plazo, la orden se considerará aceptada tácitamente.",
-          { size: 8 }
-        )
-      ]
-    })
-  );
-  observacionesParas.push(
-    new Paragraph({
-      spacing: { after: pt(2) },
-      children: [
-        run("Documentos para facturación: ", { bold: true, size: 8 }),
-        run(
-          "Consignar el número de esta orden y adjuntar factura, guía de remisión o constancia del servicio y conformidad, cuando corresponda.",
-          { size: 8 }
-        )
-      ]
-    })
-  );
-  if (data.incluir_anticorrupcion !== false) {
-    observacionesParas.push(
-      new Paragraph({
-        spacing: { after: pt(2) },
-        children: [
-          run("Cumplimiento: ", { bold: true, size: 8 }),
-          run(
-            "El proveedor declara conocer y cumplir la legislación peruana e internacional en materia anticorrupción y antisoborno, absteniéndose de ofrecer o entregar cualquier beneficio indebido en el marco de esta orden.",
-            { size: 8 }
-          )
-        ]
-      })
-    );
-  }
-
-  // -------------------------------------------------------------- COMUNICACIÓN
-  const comunicacionPara = new Paragraph({
-    spacing: { after: pt(2) },
-    children: [
-      run("Toda comunicación relacionada con facturación y cambios deberá enviarse a: ", { size: 8.5 }),
-      run(EMPRESA.correos.split(" | ")[1] || EMPRESA.correos.split(" | ")[0], { bold: true, size: 8.5 })
-    ]
-  });
-
-  // ------------------------------------------------------------- footer
-  const footer = new Footer({
-    children: [
-      new Paragraph({
-        alignment: AlignmentType.CENTER,
-        border: { top: { style: BorderStyle.SINGLE, size: 4, space: 4, color: "CCCCCC" } },
-        spacing: { before: pt(4) },
-        children: [
-          run(`${EMPRESA.nombreComercial}   |   R.U.C. ${EMPRESA.ruc}   |   ${EMPRESA.web}   |   Página `, {
-            size: 7,
-            color: GRIS_TEXTO_HEX
-          }),
-          new TextRun({ children: [PageNumber.CURRENT], size: 14, font: FUENTE, color: GRIS_TEXTO_HEX }),
-          run(" de ", { size: 7, color: GRIS_TEXTO_HEX }),
-          new TextRun({ children: [PageNumber.TOTAL_PAGES], size: 14, font: FUENTE, color: GRIS_TEXTO_HEX })
-        ]
-      })
-    ]
-  });
-
-  const bodyChildren: (Paragraph | Table)[] = [
-    headerTable,
-    ...bloqueEmpresa,
-    divider,
-    infoTable,
-    new Paragraph({ spacing: { before: pt(10), after: pt(4) }, children: [] }),
-    itemsTable,
-    new Paragraph({ spacing: { after: pt(1) }, children: [] }),
-    totalsWrap,
-    sonPara,
-    sectionBar(cw, "CONDICIONES COMERCIALES"),
-    new Paragraph({ spacing: { before: pt(4), after: pt(0) }, children: [] }),
-    ...condicionesComerciales,
-    sectionBar(cw, "CUENTAS BANCARIAS"),
-    new Paragraph({ spacing: { before: pt(4), after: pt(0) }, children: [] }),
-    ...cuentasBancarias
+  const cajaProveedor = [
+    par([run("PROVEEDOR", { bold: true, color: VERDE })], { after: 3 }),
+    ...(prov.codigo_proveedor ? [filaDato("Código:", prov.codigo_proveedor)] : []),
+    filaDato("Razón social:", prov.razon_social || ""),
+    filaDato("R.U.C. / DNI:", prov.ruc || ""),
+    filaDato("Dirección:", prov.direccion || ""),
+    filaDato("ATT:", prov.contacto || ""),
+    filaDato("Teléfono:", prov.telefono || ""),
+    filaDato("Email:", prov.email || "")
+  ];
+  const cajaComprador = [
+    filaDato("Comprador:", data.comprador || "Área de Compras / Logística"),
+    filaDato("E:", correo1),
+    filaDato("T:", EMPRESA.celulares)
+  ];
+  const cajaEntrega = [
+    filaDato("Lugar de entrega:", lugar || `Sede operativa GTO PERU\n${EMPRESA.sedeOperativa}`),
+    filaDato("Fecha requerida:", data.fecha_entrega || "Por coordinar"),
+    filaDato("Centro de costos:", data.centro_costos || "")
+  ];
+  const cajaRef = [
+    filaDato("Ref. cotización:", data.doc_relacionado || ""),
+    filaDato("Tipo proveedor:", "Nacional"),
+    filaDato("Facturar a:", `${EMPRESA.nombreLegal}\nR.U.C. ${EMPRESA.ruc}`)
   ];
 
-  if (hayObservaciones) {
-    bodyChildren.push(sectionBar(cw, "OBSERVACIONES"));
-    bodyChildren.push(new Paragraph({ spacing: { before: pt(4), after: pt(0) }, children: [] }));
-    bodyChildren.push(...observacionesParas);
-  }
+  // ------------------------------------------------------------ ítems
+  const escala = ANCHO / 535;
+  const cols = incluirCodigo
+    ? [34, 46, 179, 40, 36, 58, 66, 76]
+    : [34, 0, 225, 40, 36, 58, 66, 76];
+  const anchos = cols.filter((w) => w > 0).map((w) => Math.round(w * escala));
+  anchos[anchos.length - 1] += ANCHO - anchos.reduce((a, b) => a + b, 0);
+  const cab = ["Ítem No.", ...(incluirCodigo ? ["Código"] : []), "Descripción", "Cantidad", "Unidad Medida", "Fecha de entrega", `V. Unitario (sin IGV) ${monedaSym}`, `Importe (sin IGV) ${monedaSym}`];
+  const derecha = (i: number) => {
+    const nombre = cab[i];
+    return nombre === "Cantidad" || nombre.startsWith("V. Unitario") || nombre.startsWith("Importe");
+  };
+  const tablaItems = tabla(
+    [
+      new TableRow({
+        tableHeader: true,
+        children: cab.map((t, i) =>
+          celda([par([run(t, { bold: true, size: 7.2, color: BLANCO })], { after: 0, align: derecha(i) ? AlignmentType.RIGHT : AlignmentType.LEFT })], {
+            w: anchos[i],
+            bordes: "negro",
+            fill: GRIS_CAB,
+            valign: VerticalAlign.CENTER,
+            margen: 40
+          })
+        )
+      }),
+      ...filas.map(
+        (f) =>
+          new TableRow({
+            cantSplit: true,
+            children: [
+              String((f.idx + 1) * 10).padStart(5, "0"),
+              ...(incluirCodigo ? [f.codigo] : []),
+              f.descripcion,
+              String(f.cant),
+              f.um,
+              f.entrega,
+              money(f.vunit),
+              money(f.vtotal)
+            ].map((t, i) =>
+              celda([par([run(t, { size: 7.8, bold: cab[i] === "Descripción" })], { after: 0, align: derecha(i) ? AlignmentType.RIGHT : AlignmentType.LEFT })], {
+                w: anchos[i],
+                bordes: "negro",
+                margen: 40
+              })
+            )
+          })
+      )
+    ],
+    anchos,
+    "negro"
+  );
 
-  bodyChildren.push(sectionBar(cw, "COMUNICACIÓN"));
-  bodyChildren.push(new Paragraph({ spacing: { before: pt(4), after: pt(0) }, children: [] }));
-  bodyChildren.push(comunicacionPara);
+  // ------------------------------------------------------------ totales + SON
+  const wSon = Math.round(ANCHO * 0.58), wTotL = Math.round((ANCHO - wSon) * 0.55), wTotV = ANCHO - wSon - wTotL;
+  const tablaTotales = tabla(
+    totales.map(
+      ([l, v, dest], i) =>
+        new TableRow({
+          children: [
+            celda(i === 0 ? [par([run("SON: ", { bold: true }), run(`${son}.`)], { after: 0 })] : [vacio()], { w: wSon, margen: 40 }),
+            celda([par([run(l, { bold: true, color: dest ? BLANCO : undefined })], { after: 0 })], { w: wTotL, bordes: "negro", fill: dest ? VERDE : undefined, margen: 40 }),
+            celda([par([run(`${monedaSym} ${money(v)}`, { bold: dest, color: dest ? BLANCO : undefined })], { after: 0, align: AlignmentType.RIGHT })], {
+              w: wTotV,
+              bordes: "negro",
+              fill: dest ? VERDE : undefined,
+              margen: 40
+            })
+          ]
+        })
+    ),
+    [wSon, wTotL, wTotV]
+  );
+
+  // ------------------------------------------------------------ bloques
+  const bloque = (titulo: string, contenido: Paragraph[]) =>
+    tabla(
+      [
+        new TableRow({ children: [celda([par([run(titulo, { bold: true, color: VERDE_OSCURO })], { after: 0 })], { w: ANCHO, bordes: "negro", fill: VERDE_CLARO, margen: 40 })] }),
+        new TableRow({ children: [celda(contenido.length ? contenido : [vacio()], { w: ANCHO, bordes: "negro" })] })
+      ],
+      [ANCHO],
+      "negro"
+    );
+  const linea = (label: string | null, valor: string) => par(label ? [run(`${label} `, { bold: true }), run(valor)] : [run(valor)], { after: 2 });
+  const legal = (label: string, valor: string) => par([run(`${label} `, { bold: true, size: 7.5 }), run(valor, { size: 7.5 })], { after: 3 });
+
+  const condiciones = [
+    linea("Forma de pago:", data.forma_pago || "Por coordinar."),
+    linea("Plazo de entrega:", data.fecha_entrega || "Por coordinar con el proveedor."),
+    ...(lugar ? [linea("Lugar de recojo y entrega:", lugar)] : []),
+    ...(data.garantia ? [linea("Garantía:", data.garantia)] : []),
+    ...(data.penalidad ? [linea("Penalidad por retraso en la entrega:", data.penalidad)] : [])
+  ];
+  const cuentas = prov.cuentas_bancarias || [];
+  const cuentasParas = [
+    ...(cuentas.length === 0 ? [linea(null, "(Pendiente de proporcionar por el proveedor)")] : []),
+    ...cuentas.map((c) => linea(null, `${c.banco}: ${c.cuenta}${c.cci ? `   |   CCI: ${c.cci}` : ""}`)),
+    ...(prov.detraccion ? [linea("Detracción:", prov.detraccion)] : [])
+  ];
+  const observaciones = [
+    ...(data.condiciones_especiales || []).map((l) => linea(null, l)),
+    ...((data.observaciones || "").trim() ? [linea(null, (data.observaciones || "").trim())] : []),
+    legal(
+      "Aceptación de la orden:",
+      "El proveedor deberá confirmar la recepción y aceptación de esta orden dentro de un plazo máximo de dos (2) días calendario contados desde su envío. Si no comunica observaciones o rechazo dentro de dicho plazo, la orden se considerará aceptada tácitamente."
+    ),
+    legal(
+      "Documentos para facturación:",
+      `Consignar el número de esta orden y adjuntar factura, guía de remisión o constancia del servicio y conformidad, cuando corresponda. Enviar a: ${correoFact}`
+    ),
+    ...(data.incluir_anticorrupcion !== false
+      ? [
+          legal(
+            "Cumplimiento:",
+            "El proveedor declara conocer y cumplir la legislación peruana e internacional en materia anticorrupción y antisoborno, absteniéndose de ofrecer o entregar cualquier beneficio indebido en el marco de esta orden."
+          )
+        ]
+      : [])
+  ];
+
+  // ------------------------------------------------------------ pie
+  const footer = new Footer({
+    children: [
+      par(
+        [
+          run(
+            `Este documento es confidencial y está dirigido únicamente al proveedor indicado. Si lo recibió por error, por favor notifíquelo a ${correo1} y elimínelo.`,
+            { size: 6.5, italics: true, color: VERDE_OSCURO }
+          )
+        ],
+        { after: 1 }
+      ),
+      new Paragraph({
+        alignment: AlignmentType.RIGHT,
+        children: [
+          new TextRun({ children: [PageNumber.CURRENT], size: 16, font: FUENTE, color: GRIS_TEXTO_HEX }),
+          run(" | ", { size: 8, color: GRIS_TEXTO_HEX }),
+          new TextRun({ children: [PageNumber.TOTAL_PAGES], size: 16, font: FUENTE, color: GRIS_TEXTO_HEX })
+        ]
+      })
+    ]
+  });
 
   const doc = new Document({
-    styles: {
-      default: {
-        document: { run: { font: FUENTE, size: 16 } }
-      }
-    },
+    title: `${esServicio ? "Orden de servicio" : "Orden de compra"} ${data.numero}`,
+    styles: { default: { document: { run: { font: FUENTE, size: 16 } } } },
     sections: [
       {
         properties: {
-          page: { margin: { top: marginTop, bottom: marginBottom, left: marginLeft, right: marginRight } }
+          page: { size: { width: cm(21), height: cm(29.7) }, margin: { top: cm(2.85), bottom: cm(3.3), left: mLR, right: mLR, header: cm(0.75), footer: cm(2.35) } }
         },
+        headers: { default: membrete },
         footers: { default: footer },
-        children: bodyChildren
+        children: [
+          referencia,
+          vacio(6),
+          filaCajas(cajaProveedor, cajaComprador),
+          vacio(4),
+          filaCajas(cajaEntrega, cajaRef),
+          par([run(`Sírvase atender los ${esServicio ? "servicios" : "materiales"} detallados a continuación, en las condiciones indicadas:`, { size: 8.5 })], {
+            before: 10,
+            after: 5
+          }),
+          tablaItems,
+          vacio(5),
+          tablaTotales,
+          vacio(4),
+          bloque("CONDICIONES COMERCIALES", condiciones),
+          vacio(4),
+          bloque("CUENTAS BANCARIAS DEL PROVEEDOR", cuentasParas),
+          vacio(4),
+          bloque("OBSERVACIONES Y CONDICIONES", observaciones)
+        ]
       }
     ]
   });
 
   const { Packer } = await import("docx");
-  const buf = await Packer.toBuffer(doc);
-  return buf;
+  return await Packer.toBuffer(doc);
 }

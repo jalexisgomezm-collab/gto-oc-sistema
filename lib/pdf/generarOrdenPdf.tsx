@@ -1,127 +1,106 @@
 import React from "react";
 import { Document, Page, View, Text, Image, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
 import path from "node:path";
-import { EMPRESA, VERDE_HEX, GRIS_ZEBRA_HEX, GRIS_TEXTO_HEX } from "@/lib/empresa";
+import { EMPRESA, GRIS_TEXTO_HEX, VERDE_HEX, VERDE_CLARO_HEX } from "@/lib/empresa";
 import { montoALetras } from "@/lib/numeroALetras";
 import type { OrdenCompraData } from "@/lib/types";
 
-const VERDE = `#${VERDE_HEX}`;
-const GRIS_ZEBRA = `#${GRIS_ZEBRA_HEX}`;
+// Formato con recuadros sobre la hoja membretada de GTO PERU (logo arriba y datos de contacto al pie vienen del membrete)
 const GRIS_TEXTO = `#${GRIS_TEXTO_HEX}`;
+const VERDE = `#${VERDE_HEX}`;
+const VERDE_CLARO = `#${VERDE_CLARO_HEX}`;
+const VERDE_OSCURO = "#016B39";
+const BORDE = "#8FBFA3";
+const GRIS_CAB = VERDE;
+const B = "Helvetica-Bold";
 
 const money = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const styles = StyleSheet.create({
-  page: { paddingTop: 28, paddingBottom: 34, paddingHorizontal: 40, fontSize: 8.5, fontFamily: "Helvetica", color: "#111111" },
-  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 },
-  logo: { width: 150, height: 42.4 },
-  headerRight: { alignItems: "flex-end" },
-  tituloOC: { fontSize: 20, fontWeight: 700, color: VERDE, textAlign: "right" },
-  ocNumero: { fontSize: 13, fontWeight: 700, color: VERDE, marginTop: 4 },
-  ocRuc: { fontSize: 9, marginTop: 2, color: "#333333" },
-  empresaInfo: { fontSize: 8, marginBottom: 2 },
-  empresaLabel: { fontWeight: 700 },
-  divider: { borderBottomWidth: 2, borderColor: VERDE, marginTop: 6, marginBottom: 10 },
-  infoRow: { flexDirection: "row" },
-  infoCellLabel: { padding: 5, fontSize: 8, fontWeight: 700 },
-  infoCellValue: { padding: 5, fontSize: 8 },
-  sectionBar: { backgroundColor: VERDE, paddingVertical: 5, paddingHorizontal: 8, marginTop: 12, marginBottom: 6 },
-  sectionBarText: { fontSize: 9.5, fontWeight: 700, color: "#FFFFFF" },
-  itemsHeaderRow: { flexDirection: "row", backgroundColor: VERDE },
-  itemsHeaderCell: { padding: 4, fontSize: 7.5, fontWeight: 700, color: "#FFFFFF" },
-  itemsRow: { flexDirection: "row", borderBottomWidth: 0.5, borderColor: "#D9D9D9" },
-  itemsCell: { padding: 4, fontSize: 8 },
-  totalsWrap: { flexDirection: "row", justifyContent: "flex-end", marginTop: 8 },
-  totalsBox: { width: "48%" },
-  totalRow: { flexDirection: "row", backgroundColor: GRIS_ZEBRA, marginBottom: 1 },
-  totalRowDestacado: { flexDirection: "row", backgroundColor: VERDE, marginBottom: 1 },
-  totalLabel: { flex: 1, padding: 5, fontSize: 8.5, fontWeight: 700 },
-  totalValue: { padding: 5, fontSize: 8.5, textAlign: "right" },
-  sonPara: { marginTop: 8, marginBottom: 4, fontSize: 8.5, fontStyle: "italic" },
-  sonLabel: { fontWeight: 700, fontStyle: "normal" },
-  bodyLine: { fontSize: 8.5, marginBottom: 3 },
-  labelBold: { fontWeight: 700 },
-  legalBlock: { fontSize: 8, marginBottom: 4, color: "#222222" },
-  footer: {
-    position: "absolute",
-    bottom: 16,
-    left: 40,
-    right: 40,
-    borderTopWidth: 0.5,
-    borderColor: "#CCCCCC",
-    paddingTop: 4,
-    fontSize: 7.5,
-    color: GRIS_TEXTO,
-    textAlign: "center"
-  }
+const s = StyleSheet.create({
+  page: { paddingTop: 80, paddingBottom: 100, paddingHorizontal: 30, fontSize: 8, fontFamily: "Helvetica", color: "#000000" },
+  // título fijo arriba a la derecha (se repite en cada página, junto al logo del membrete)
+  top: { position: "absolute", top: 28, right: 30, alignItems: "flex-end" },
+  fondo: { position: "absolute", top: 0, left: 0, width: 595.28, height: 841.89 },
+  titulo: { fontSize: 16, fontFamily: B, color: VERDE, textAlign: "right" },
+  subtitulo: { fontSize: 9.5, fontFamily: B, marginTop: 2, textAlign: "right", color: "#333333" },
+  numero: { fontSize: 11, fontFamily: B, marginTop: 3, textAlign: "right", color: "#FFFFFF", backgroundColor: VERDE, paddingVertical: 2, paddingHorizontal: 8, alignSelf: "flex-end" },
+  refRow: { flexDirection: "row", marginTop: 0, borderBottomWidth: 1.5, borderColor: VERDE, paddingBottom: 5 },
+  refLabel: { fontFamily: B, fontSize: 9, width: 86, color: VERDE_OSCURO },
+  refValue: { fontSize: 9, width: 110 },
+  cajas: { flexDirection: "row", justifyContent: "space-between", marginTop: 8 },
+  caja: { borderWidth: 1, borderColor: BORDE, padding: 5, backgroundColor: "#FFFFFF" },
+  cajaTitulo: { fontFamily: B, fontSize: 8, marginBottom: 3, color: VERDE },
+  fila: { flexDirection: "row", marginBottom: 2.5 },
+  lab: { fontFamily: B, width: 78, color: VERDE_OSCURO },
+  val: { flex: 1 },
+  intro: { marginTop: 12, marginBottom: 6, marginLeft: 4, fontSize: 8.5 },
+  tabla: { borderWidth: 1, borderColor: BORDE, borderBottomWidth: 0 },
+  th: { flexDirection: "row", backgroundColor: GRIS_CAB, borderBottomWidth: 1, borderColor: VERDE },
+  thCell: { fontFamily: B, fontSize: 7.2, padding: 2.5, borderRightWidth: 1, borderColor: "#FFFFFF", color: "#FFFFFF" },
+  tr: { flexDirection: "row", borderBottomWidth: 1, borderColor: BORDE, backgroundColor: "#FFFFFF" },
+  td: { padding: 2.5, borderRightWidth: 1, borderColor: BORDE, fontSize: 7.8 },
+  totales: { flexDirection: "row", justifyContent: "space-between", marginTop: 6 },
+  son: { width: "56%", fontSize: 8, paddingTop: 4 },
+  totBox: { width: "40%", borderWidth: 1, borderColor: BORDE, borderBottomWidth: 0, backgroundColor: "#FFFFFF" },
+  totRow: { flexDirection: "row", borderBottomWidth: 1, borderColor: BORDE },
+  totLab: { flex: 1, padding: 3, fontFamily: B, fontSize: 8 },
+  totVal: { width: "45%", padding: 3, textAlign: "right", fontSize: 8, borderLeftWidth: 1, borderColor: BORDE },
+  bloque: { borderWidth: 1, borderColor: BORDE, marginTop: 8, backgroundColor: "#FFFFFF" },
+  bloqueTit: { backgroundColor: VERDE_CLARO, color: VERDE_OSCURO, fontFamily: B, fontSize: 8, paddingVertical: 3, paddingHorizontal: 5, borderBottomWidth: 1, borderColor: BORDE },
+  bloqueCuerpo: { padding: 5 },
+  linea: { fontSize: 8, marginBottom: 2.5 },
+  legal: { fontSize: 7.5, marginBottom: 3, color: "#222222" },
+  pie: { position: "absolute", left: 30, right: 30, bottom: 68, flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end" },
+  pieConf: { width: "90%", fontSize: 6.5, fontStyle: "italic", color: VERDE_OSCURO },
+  piePagina: { fontSize: 8, color: GRIS_TEXTO, textAlign: "right" }
 });
 
-function TablaInfo({ izquierda, derecha }: { izquierda: [string, string][]; derecha: [string, string][] }) {
-  const filas = Math.max(izquierda.length, derecha.length);
+function Fila({ l, v }: { l: string; v: string }) {
   return (
-    <View style={{ borderWidth: 0.5, borderColor: "#D9D9D9" }}>
-      {Array.from({ length: filas }).map((_, i) => {
-        const shaded = i % 2 === 0;
-        const [labelI, valorI] = izquierda[i] || ["", ""];
-        const [labelD, valorD] = derecha[i] || ["", ""];
-        return (
-          <View key={i} style={[styles.infoRow, { backgroundColor: shaded ? GRIS_ZEBRA : "#FFFFFF" }]}>
-            <Text style={[styles.infoCellLabel, { width: "16%" }]}>{labelI}</Text>
-            <Text style={[styles.infoCellValue, { width: "34%" }]}>{valorI}</Text>
-            <Text style={[styles.infoCellLabel, { width: "20%" }]}>{labelD}</Text>
-            <Text style={[styles.infoCellValue, { width: "30%" }]}>{valorD}</Text>
-          </View>
-        );
-      })}
+    <View style={s.fila}>
+      <Text style={s.lab}>{l}</Text>
+      <Text style={s.val}>{v || "—"}</Text>
     </View>
   );
 }
 
-function SectionBar({ texto }: { texto: string }) {
+function Bloque({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (
-    <View style={styles.sectionBar}>
-      <Text style={styles.sectionBarText}>{texto}</Text>
+    <View style={s.bloque} wrap={false}>
+      <Text style={s.bloqueTit}>{titulo}</Text>
+      <View style={s.bloqueCuerpo}>{children}</View>
     </View>
   );
 }
 
-function OrdenDocumento({ data, logoDataUri }: { data: OrdenCompraData; logoDataUri: string | null }) {
+function OrdenDocumento({ data, fondoDataUri }: { data: OrdenCompraData; fondoDataUri: string | null }) {
+  const esServicio = data.tipo === "SERVICIO";
   const numeroPadded = String(data.numero).padStart(6, "0");
   const prov = data.proveedor;
   const moneda = data.moneda || "SOLES";
   const monedaSym = moneda.toUpperCase().startsWith("DOLAR") || moneda.toUpperCase().startsWith("USD") ? "US$" : "S/";
   const monedaTexto = monedaSym === "US$" ? "DÓLARES" : "SOLES";
 
-  const izquierda: [string, string][] = [
-    ["R.U.C. / DNI", prov.ruc || ""],
-    ["Razón social", prov.razon_social || ""],
-    ["Dirección", prov.direccion || ""],
-    ["Contacto", prov.contacto || ""],
-    ["Celular", prov.telefono || "-"],
-    ["Correo", prov.email || "-"]
-  ];
-  const derecha: [string, string][] = [
-    ["Tipo de proveedor", "NACIONAL"],
-    ["Fecha de emisión", data.fecha_emision || ""],
-    ["Centro de costos", data.centro_costos || "-"],
-    ["Referencia de cotización", data.doc_relacionado || "-"],
-    ["Comprador", data.comprador || "-"],
-    ["Moneda", moneda === "DOLARES" ? "DÓLARES (US$)" : "SOLES (S/)"]
-  ];
-
   const items = data.items;
   const incluirCodigo = items.some((it) => (it.codigo || "").toString().trim() !== "");
 
   let opGravadas = 0;
-  const filasItems = items.map((item, idx) => {
+  const filas = items.map((item, idx) => {
     const cant = Number(item.cantidad);
     const vunit = Number(item.valor_unitario);
     const vtotal = Math.round(cant * vunit * 100) / 100;
     opGravadas += vtotal;
-    const entrega = item.entrega || data.fecha_entrega || "POR COORDINAR";
-    return { idx, cant, vunit, vtotal, entrega, um: item.um || "UND", descripcion: item.descripcion, codigo: item.codigo || "" };
+    return {
+      idx,
+      cant,
+      vunit,
+      vtotal,
+      entrega: item.entrega || data.fecha_entrega || "Por coordinar",
+      um: item.um || "UND",
+      descripcion: item.descripcion,
+      codigo: item.codigo || ""
+    };
   });
-
   const subtotalItems = Math.round(opGravadas * 100) / 100;
   const descuento = Math.round((data.descuento || 0) * 100) / 100;
   opGravadas = Math.round((subtotalItems - descuento) * 100) / 100;
@@ -129,81 +108,125 @@ function OrdenDocumento({ data, logoDataUri }: { data: OrdenCompraData; logoData
   const total = Math.round((opGravadas + igv) * 100) / 100;
   const son = montoALetras(total, monedaTexto);
 
-  const etiquetas: [string, number, boolean][] = [];
+  const totales: [string, number, boolean][] = [];
   if (descuento) {
-    etiquetas.push(["SUBTOTAL", subtotalItems, false]);
-    etiquetas.push(["DESCUENTO", -descuento, false]);
+    totales.push(["Subtotal", subtotalItems, false]);
+    totales.push(["Descuento", -descuento, false]);
   }
-  etiquetas.push(["OPERACIÓN GRAVADA", opGravadas, false]);
-  etiquetas.push(["I.G.V. (18%)", igv, false]);
-  etiquetas.push(["IMPORTE TOTAL", total, true]);
+  totales.push(["Operación gravada", opGravadas, false]);
+  totales.push(["I.G.V. (18%)", igv, false]);
+  totales.push(["IMPORTE TOTAL", total, true]);
+
+  // anchos en pt (ancho útil 535)
+  const W = incluirCodigo
+    ? { item: 34, cod: 46, desc: 179, cant: 40, um: 36, ent: 58, vu: 66, imp: 76 }
+    : { item: 34, cod: 0, desc: 225, cant: 40, um: 36, ent: 58, vu: 66, imp: 76 };
 
   const cuentas = prov.cuentas_bancarias || [];
   const condicionesExtra = data.condiciones_especiales || [];
   const observaciones = (data.observaciones || "").trim();
-  const hayObservaciones = condicionesExtra.length > 0 || !!data.garantia || !!data.penalidad || !!observaciones;
-
-  const colDescPct = incluirCodigo ? "32%" : "36%";
+  const lugar = data.lugar_entrega || (data.origen || data.destino ? `${data.origen || ""} → ${data.destino || ""}` : "");
+  const correoFact = EMPRESA.correos.split(" | ")[1] || EMPRESA.correos.split(" | ")[0];
 
   return (
-    <Page size="A4" style={styles.page}>
-      <View style={styles.headerRow}>
-        {logoDataUri ? <Image src={logoDataUri} style={styles.logo} /> : <View />}
-        <View style={styles.headerRight}>
-          <Text style={styles.tituloOC}>{data.tipo === "SERVICIO" ? "ORDEN DE SERVICIO" : "ORDEN DE COMPRA"}</Text>
-          <Text style={styles.ocNumero}>N° {numeroPadded}</Text>
-          <Text style={styles.ocRuc}>R.U.C. {EMPRESA.ruc}</Text>
+    <Page size="A4" style={s.page}>
+      {fondoDataUri ? <Image src={fondoDataUri} style={s.fondo} fixed /> : null}
+      <View style={s.top} fixed>
+        <View>
+          <Text style={s.titulo}>{esServicio ? "ORDEN DE SERVICIO" : "ORDEN DE COMPRA"}</Text>
+          <Text style={s.subtitulo}>GTO PERU S.A.C. · R.U.C. {EMPRESA.ruc}</Text>
+          <Text style={s.numero}>N° {numeroPadded}</Text>
         </View>
       </View>
 
-      <Text style={styles.empresaInfo}>
-        <Text style={styles.empresaLabel}>Sede fiscal: </Text>
-        {EMPRESA.domicilioFiscal}
-      </Text>
-      <Text style={styles.empresaInfo}>
-        <Text style={styles.empresaLabel}>Sede operativa: </Text>
-        {EMPRESA.sedeOperativa}
-      </Text>
-      <Text style={styles.empresaInfo}>
-        Tel: {EMPRESA.celulares}   |   {EMPRESA.correos.split(" | ")[0]}
-      </Text>
-      <Text style={styles.empresaInfo}>{EMPRESA.web}</Text>
-
-      <View style={styles.divider} />
-
-      <TablaInfo izquierda={izquierda} derecha={derecha} />
-
-      <View style={{ marginTop: 12 }}>
-        <View style={styles.itemsHeaderRow}>
-          <Text style={[styles.itemsHeaderCell, { width: "6%" }]}>ÍTEM</Text>
-          {incluirCodigo && <Text style={[styles.itemsHeaderCell, { width: "9%" }]}>CÓDIGO</Text>}
-          <Text style={[styles.itemsHeaderCell, { width: colDescPct }]}>DESCRIPCIÓN</Text>
-          <Text style={[styles.itemsHeaderCell, { width: "7%" }]}>CANT.</Text>
-          <Text style={[styles.itemsHeaderCell, { width: "7%" }]}>U.M.</Text>
-          <Text style={[styles.itemsHeaderCell, { width: "10%" }]}>ENTREGA</Text>
-          <Text style={[styles.itemsHeaderCell, { width: "15%", textAlign: "right" }]}>V. UNIT. ({monedaSym})</Text>
-          <Text style={[styles.itemsHeaderCell, { width: "16%", textAlign: "right" }]}>IMPORTE ({monedaSym})</Text>
+      <View style={s.refRow}>
+        <View>
+          <View style={{ flexDirection: "row" }}>
+            <Text style={s.refLabel}>{esServicio ? "Orden Servicio:" : "Orden Compra:"}</Text>
+            <Text style={s.refValue}>{numeroPadded}</Text>
+          </View>
+          <View style={{ flexDirection: "row", marginTop: 1 }}>
+            <Text style={s.refLabel}>Fecha emisión:</Text>
+            <Text style={s.refValue}>{data.fecha_emision || ""}</Text>
+          </View>
         </View>
-        {filasItems.map((f) => (
-          <View key={f.idx} style={styles.itemsRow} wrap={false}>
-            <Text style={[styles.itemsCell, { width: "6%", textAlign: "center" }]}>{f.idx + 1}</Text>
-            {incluirCodigo && <Text style={[styles.itemsCell, { width: "9%", textAlign: "center" }]}>{f.codigo}</Text>}
-            <Text style={[styles.itemsCell, { width: colDescPct }]}>{f.descripcion}</Text>
-            <Text style={[styles.itemsCell, { width: "7%", textAlign: "center" }]}>{f.cant}</Text>
-            <Text style={[styles.itemsCell, { width: "7%", textAlign: "center" }]}>{f.um}</Text>
-            <Text style={[styles.itemsCell, { width: "10%", textAlign: "center", fontSize: 7.5 }]}>{f.entrega}</Text>
-            <Text style={[styles.itemsCell, { width: "15%", textAlign: "right" }]}>{money(f.vunit)}</Text>
-            <Text style={[styles.itemsCell, { width: "16%", textAlign: "right", fontWeight: 700 }]}>{money(f.vtotal)}</Text>
+        <View style={{ marginLeft: 18 }}>
+          <Text style={{ fontFamily: B, fontSize: 9 }}>Moneda: {moneda === "DOLARES" ? "USD - Dólar americano" : "PEN - Sol peruano"}</Text>
+          <Text style={{ fontSize: 9, marginTop: 1 }}>Forma de pago: {data.forma_pago || "Por coordinar"}</Text>
+        </View>
+      </View>
+
+      <View style={s.cajas}>
+        <View style={{ width: "54%" }}>
+          <View style={s.caja}>
+            <Text style={s.cajaTitulo}>PROVEEDOR</Text>
+            {prov.codigo_proveedor ? <Fila l="Código:" v={prov.codigo_proveedor} /> : null}
+            <Fila l="Razón social:" v={prov.razon_social || ""} />
+            <Fila l="R.U.C. / DNI:" v={prov.ruc || ""} />
+            <Fila l="Dirección:" v={prov.direccion || ""} />
+            <Fila l="ATT:" v={prov.contacto || ""} />
+            <Fila l="Teléfono:" v={prov.telefono || ""} />
+            <Fila l="Email:" v={prov.email || ""} />
+          </View>
+          <View style={[s.caja, { marginTop: 6 }]}>
+            <Fila l="Lugar de entrega:" v={lugar || `Sede operativa GTO PERU\n${EMPRESA.sedeOperativa}`} />
+            <Fila l="Fecha requerida:" v={data.fecha_entrega || "Por coordinar"} />
+            <Fila l="Centro de costos:" v={data.centro_costos || ""} />
+          </View>
+        </View>
+        <View style={{ width: "43%" }}>
+          <View style={s.caja}>
+            <Fila l="Comprador:" v={data.comprador || "Área de Compras / Logística"} />
+            <Fila l="E:" v={EMPRESA.correos.split(" | ")[0]} />
+            <Fila l="T:" v={EMPRESA.celulares} />
+          </View>
+          <View style={[s.caja, { marginTop: 6 }]}>
+            <Fila l="Ref. cotización:" v={data.doc_relacionado || ""} />
+            <Fila l="Tipo proveedor:" v="Nacional" />
+            <Fila l="Facturar a:" v={`${EMPRESA.nombreLegal}\nR.U.C. ${EMPRESA.ruc}`} />
+          </View>
+        </View>
+      </View>
+
+      <Text style={s.intro}>
+        Sírvase atender los {esServicio ? "servicios" : "materiales"} detallados a continuación, en las condiciones indicadas:
+      </Text>
+
+      <View style={s.tabla}>
+        <View style={s.th} fixed>
+          <Text style={[s.thCell, { width: W.item }]}>{"Ítem\nNo."}</Text>
+          {incluirCodigo ? <Text style={[s.thCell, { width: W.cod }]}>Código</Text> : null}
+          <Text style={[s.thCell, { width: W.desc }]}>Descripción</Text>
+          <Text style={[s.thCell, { width: W.cant, textAlign: "right" }]}>Cantidad</Text>
+          <Text style={[s.thCell, { width: W.um }]}>{"Unidad\nMedida"}</Text>
+          <Text style={[s.thCell, { width: W.ent }]}>{"Fecha de\nentrega"}</Text>
+          <Text style={[s.thCell, { width: W.vu, textAlign: "right" }]}>{`V. Unitario\n(sin IGV) ${monedaSym}`}</Text>
+          <Text style={[s.thCell, { width: W.imp, textAlign: "right", borderRightWidth: 0 }]}>{`Importe\n(sin IGV) ${monedaSym}`}</Text>
+        </View>
+        {filas.map((f) => (
+          <View key={f.idx} style={s.tr} wrap={false}>
+            <Text style={[s.td, { width: W.item }]}>{String((f.idx + 1) * 10).padStart(5, "0")}</Text>
+            {incluirCodigo ? <Text style={[s.td, { width: W.cod }]}>{f.codigo}</Text> : null}
+            <Text style={[s.td, { width: W.desc, fontFamily: B }]}>{f.descripcion}</Text>
+            <Text style={[s.td, { width: W.cant, textAlign: "right" }]}>{String(f.cant)}</Text>
+            <Text style={[s.td, { width: W.um }]}>{f.um}</Text>
+            <Text style={[s.td, { width: W.ent, fontSize: 7.2 }]}>{f.entrega}</Text>
+            <Text style={[s.td, { width: W.vu, textAlign: "right" }]}>{money(f.vunit)}</Text>
+            <Text style={[s.td, { width: W.imp, textAlign: "right", borderRightWidth: 0 }]}>{money(f.vtotal)}</Text>
           </View>
         ))}
       </View>
 
-      <View style={styles.totalsWrap}>
-        <View style={styles.totalsBox}>
-          {etiquetas.map(([label, val, destacado], i) => (
-            <View key={i} style={destacado ? styles.totalRowDestacado : styles.totalRow}>
-              <Text style={[styles.totalLabel, destacado ? { color: "#FFFFFF" } : {}]}>{label}</Text>
-              <Text style={[styles.totalValue, { width: "50%" }, destacado ? { color: "#FFFFFF", fontWeight: 700 } : {}]}>
+      <View style={s.totales} wrap={false}>
+        <Text style={s.son}>
+          <Text style={{ fontFamily: B }}>SON: </Text>
+          {son}.
+        </Text>
+        <View style={s.totBox}>
+          {totales.map(([label, val, dest], i) => (
+            <View key={i} style={[s.totRow, dest ? { backgroundColor: VERDE } : {}]}>
+              <Text style={[s.totLab, dest ? { color: "#FFFFFF" } : {}]}>{label}</Text>
+              <Text style={[s.totVal, dest ? { fontFamily: B, color: "#FFFFFF" } : {}]}>
                 {monedaSym} {money(val)}
               </Text>
             </View>
@@ -211,115 +234,105 @@ function OrdenDocumento({ data, logoDataUri }: { data: OrdenCompraData; logoData
         </View>
       </View>
 
-      <Text style={styles.sonPara}>
-        <Text style={styles.sonLabel}>SON: </Text>
-        {son}.
-      </Text>
+      <Bloque titulo="CONDICIONES COMERCIALES">
+        <Text style={s.linea}>
+          <Text style={{ fontFamily: B }}>Forma de pago: </Text>
+          {data.forma_pago || "Por coordinar."}
+        </Text>
+        <Text style={s.linea}>
+          <Text style={{ fontFamily: B }}>Plazo de entrega: </Text>
+          {data.fecha_entrega || "Por coordinar con el proveedor."}
+        </Text>
+        {lugar ? (
+          <Text style={s.linea}>
+            <Text style={{ fontFamily: B }}>Lugar de recojo y entrega: </Text>
+            {lugar}
+          </Text>
+        ) : null}
+        {data.garantia ? (
+          <Text style={s.linea}>
+            <Text style={{ fontFamily: B }}>Garantía: </Text>
+            {data.garantia}
+          </Text>
+        ) : null}
+        {data.penalidad ? (
+          <Text style={s.linea}>
+            <Text style={{ fontFamily: B }}>Penalidad por retraso en la entrega: </Text>
+            {data.penalidad}
+          </Text>
+        ) : null}
+      </Bloque>
 
-      <SectionBar texto="CONDICIONES COMERCIALES" />
-      {data.forma_pago && (
-        <Text style={styles.bodyLine}>
-          <Text style={styles.labelBold}>Forma de pago: </Text>
-          {data.forma_pago}
-        </Text>
-      )}
-      {(data.lugar_entrega || data.origen || data.destino) && (
-        <Text style={styles.bodyLine}>
-          <Text style={styles.labelBold}>Lugar de recojo y entrega: </Text>
-          {data.lugar_entrega || `${data.origen || ""} → ${data.destino || ""}`}
-        </Text>
-      )}
-      <Text style={styles.bodyLine}>
-        <Text style={styles.labelBold}>Plazo de entrega: </Text>
-        {data.fecha_entrega || "Por coordinar con el proveedor."}
-      </Text>
-      {data.garantia && (
-        <Text style={styles.bodyLine}>
-          <Text style={styles.labelBold}>Garantía: </Text>
-          {data.garantia}
-        </Text>
-      )}
-      {data.penalidad && (
-        <Text style={styles.bodyLine}>
-          <Text style={styles.labelBold}>Penalidad por retraso en la entrega: </Text>
-          {data.penalidad}
-        </Text>
-      )}
+      <Bloque titulo="CUENTAS BANCARIAS DEL PROVEEDOR">
+        {cuentas.length === 0 ? <Text style={s.linea}>(Pendiente de proporcionar por el proveedor)</Text> : null}
+        {cuentas.map((c, i) => (
+          <Text key={i} style={s.linea}>
+            {c.banco}: {c.cuenta}
+            {c.cci ? `   |   CCI: ${c.cci}` : ""}
+          </Text>
+        ))}
+        {prov.detraccion ? (
+          <Text style={s.linea}>
+            <Text style={{ fontFamily: B }}>Detracción: </Text>
+            {prov.detraccion}
+          </Text>
+        ) : null}
+      </Bloque>
 
-      <SectionBar texto="CUENTAS BANCARIAS" />
-      {cuentas.length === 0 && <Text style={styles.bodyLine}>(Pendiente de proporcionar por el proveedor)</Text>}
-      {cuentas.map((c, i) => (
-        <Text key={i} style={styles.bodyLine}>
-          {c.banco}: {c.cuenta}
-          {c.cci ? `  |  CCI: ${c.cci}` : ""}
-        </Text>
-      ))}
-      {prov.detraccion && (
-        <Text style={styles.bodyLine}>
-          <Text style={styles.labelBold}>Detracción: </Text>
-          {prov.detraccion}
-        </Text>
-      )}
-
-      {hayObservaciones && (
-        <>
-          <SectionBar texto="OBSERVACIONES" />
+      <View style={s.bloque}>
+        <Text style={s.bloqueTit}>OBSERVACIONES Y CONDICIONES</Text>
+        <View style={s.bloqueCuerpo}>
           {condicionesExtra.map((linea, i) => (
-            <Text key={i} style={styles.bodyLine}>
+            <Text key={i} style={s.linea}>
               {linea}
             </Text>
           ))}
-          {observaciones && <Text style={styles.bodyLine}>{observaciones}</Text>}
-          <Text style={styles.legalBlock}>
-            <Text style={styles.labelBold}>Aceptación de la orden: </Text>
+          {observaciones ? <Text style={s.linea}>{observaciones}</Text> : null}
+          <Text style={s.legal}>
+            <Text style={{ fontFamily: B }}>Aceptación de la orden: </Text>
             El proveedor deberá confirmar la recepción y aceptación de esta orden dentro de un plazo máximo de dos (2) días
             calendario contados desde su envío. Si no comunica observaciones o rechazo dentro de dicho plazo, la orden se
             considerará aceptada tácitamente.
           </Text>
-          <Text style={styles.legalBlock}>
-            <Text style={styles.labelBold}>Documentos para facturación: </Text>
+          <Text style={s.legal}>
+            <Text style={{ fontFamily: B }}>Documentos para facturación: </Text>
             Consignar el número de esta orden y adjuntar factura, guía de remisión o constancia del servicio y conformidad,
-            cuando corresponda.
+            cuando corresponda. Enviar a: {correoFact}
           </Text>
-          {data.incluir_anticorrupcion !== false && (
-            <Text style={styles.legalBlock}>
-              <Text style={styles.labelBold}>Cumplimiento: </Text>
+          {data.incluir_anticorrupcion !== false ? (
+            <Text style={s.legal}>
+              <Text style={{ fontFamily: B }}>Cumplimiento: </Text>
               El proveedor declara conocer y cumplir la legislación peruana e internacional en materia anticorrupción y
               antisoborno, absteniéndose de ofrecer o entregar cualquier beneficio indebido en el marco de esta orden.
             </Text>
-          )}
-        </>
-      )}
+          ) : null}
+        </View>
+      </View>
 
-      <SectionBar texto="COMUNICACIÓN" />
-      <Text style={styles.bodyLine}>
-        Toda comunicación relacionada con facturación y cambios deberá enviarse a:{" "}
-        <Text style={styles.labelBold}>{EMPRESA.correos.split(" | ")[1] || EMPRESA.correos.split(" | ")[0]}</Text>
-      </Text>
-
-      <Text
-        style={styles.footer}
-        render={({ pageNumber, totalPages }) =>
-          `${EMPRESA.nombreComercial}   |   R.U.C. ${EMPRESA.ruc}   |   ${EMPRESA.web}   |   Página ${pageNumber} de ${totalPages}`
-        }
-        fixed
-      />
+      <View style={s.pie} fixed>
+        <Text style={s.pieConf}>
+          Este documento es confidencial y está dirigido únicamente al proveedor indicado. Si lo recibió por error, por favor
+          notifíquelo a {EMPRESA.correos.split(" | ")[0]} y elimínelo.
+        </Text>
+        <Text style={s.piePagina} render={({ pageNumber, totalPages }) => `${pageNumber} | ${totalPages}`} />
+      </View>
     </Page>
   );
 }
 
 export async function generarOrdenPdf(data: OrdenCompraData): Promise<Buffer> {
   const fs = await import("node:fs");
-  const logoPath = path.join(process.cwd(), "public", "logo-gto.png");
-  let logoDataUri: string | null = null;
-  if (fs.existsSync(logoPath)) {
-    const b64 = fs.readFileSync(logoPath).toString("base64");
-    logoDataUri = `data:image/png;base64,${b64}`;
+  // Hoja membretada GTO PERU (fondo de página completa: logo arriba, contactos y gráfico al pie)
+  const fondoPath = path.join(process.cwd(), "public", "membrete-gto.jpg");
+  let fondoDataUri: string | null = null;
+  if (fs.existsSync(fondoPath)) {
+    const b64 = fs.readFileSync(fondoPath).toString("base64");
+    fondoDataUri = `data:image/jpeg;base64,${b64}`;
   }
 
   const buf = await renderToBuffer(
-    <Document>
-      <OrdenDocumento data={data} logoDataUri={logoDataUri} />
+    <Document title={`${data.tipo === "SERVICIO" ? "Orden de servicio" : "Orden de compra"} ${data.numero}`}>
+      <OrdenDocumento data={data} fondoDataUri={fondoDataUri} />
     </Document>
   );
   return buf;
