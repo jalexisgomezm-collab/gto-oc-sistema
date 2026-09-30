@@ -1,12 +1,15 @@
 import React from "react";
 import { Document, Page, View, Text, Image, Link, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
 import path from "node:path";
-import { EMPRESA, VERDE_HEX, GRIS_TEXTO_HEX } from "@/lib/empresa";
+import { EMPRESA, VERDE_HEX, GRIS_TEXTO_HEX, VERDE_CLARO_HEX } from "@/lib/empresa";
 
 const VERDE = `#${VERDE_HEX}`;
 const GRIS_TEXTO = `#${GRIS_TEXTO_HEX}`;
-const BORDE = "#000000";
-const GRIS_CAB = "#D9D9D9";
+const VERDE_CLARO = `#${VERDE_CLARO_HEX}`;
+const VERDE_OSCURO = "#016B39";
+const BORDE = "#8FBFA3";
+const BLANCO = "#FFFFFF";
+// Formato sobre la hoja membretada de GTO PERU (logo arriba y contactos al pie vienen del membrete)
 const B = "Helvetica-Bold";
 
 export interface SolicitudPdfData {
@@ -37,36 +40,37 @@ export interface SolicitudPdfData {
 }
 
 const s = StyleSheet.create({
-  page: { paddingTop: 26, paddingBottom: 92, paddingHorizontal: 30, fontSize: 8, fontFamily: "Helvetica", color: "#000000" },
+  page: { paddingTop: 80, paddingBottom: 100, paddingHorizontal: 30, fontSize: 8, fontFamily: "Helvetica", color: "#000000" },
   // cabecera
-  top: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
-  titulo: { fontSize: 15, fontFamily: B },
-  subtitulo: { fontSize: 10, fontFamily: B, marginTop: 1 },
-  logo: { width: 128, height: 36.2 },
-  refRow: { flexDirection: "row", marginTop: 10 },
-  refLabel: { fontFamily: B, fontSize: 9, width: 86 },
+  fondo: { position: "absolute", top: 0, left: 0, width: 595.28, height: 841.89 },
+  top: { position: "absolute", top: 28, right: 30, alignItems: "flex-end" },
+  titulo: { fontSize: 16, fontFamily: B, color: VERDE, textAlign: "right" },
+  subtitulo: { fontSize: 9.5, fontFamily: B, marginTop: 2, textAlign: "right", color: "#333333" },
+  numero: { fontSize: 11, fontFamily: B, marginTop: 3, color: BLANCO, backgroundColor: VERDE, paddingVertical: 2, paddingHorizontal: 8 },
+  refRow: { flexDirection: "row", borderBottomWidth: 1.5, borderColor: VERDE, paddingBottom: 5 },
+  refLabel: { fontFamily: B, fontSize: 9, width: 86, color: VERDE_OSCURO },
   refValue: { fontSize: 9, width: 110 },
-  refNota: { fontFamily: B, fontSize: 9 },
+  refNota: { fontFamily: B, fontSize: 9, color: VERDE_OSCURO },
   // recuadros
   cajas: { flexDirection: "row", justifyContent: "space-between", marginTop: 8 },
-  caja: { borderWidth: 1, borderColor: BORDE, padding: 5 },
+  caja: { borderWidth: 1, borderColor: BORDE, padding: 5, backgroundColor: BLANCO },
   fila: { flexDirection: "row", marginBottom: 2.5 },
-  lab: { fontFamily: B, width: 72 },
+  lab: { fontFamily: B, width: 72, color: VERDE_OSCURO },
   val: { flex: 1 },
   intro: { marginTop: 12, marginBottom: 6, marginLeft: 4, fontSize: 8.5 },
   // tabla
   tabla: { borderWidth: 1, borderColor: BORDE, borderBottomWidth: 0 },
-  th: { flexDirection: "row", backgroundColor: GRIS_CAB, borderBottomWidth: 1, borderColor: BORDE },
-  thCell: { fontFamily: B, fontSize: 7.2, padding: 2.5, borderRightWidth: 1, borderColor: BORDE },
-  tr: { flexDirection: "row", borderBottomWidth: 1, borderColor: BORDE },
+  th: { flexDirection: "row", backgroundColor: VERDE, borderBottomWidth: 1, borderColor: VERDE },
+  thCell: { fontFamily: B, fontSize: 7.2, padding: 2.5, borderRightWidth: 1, borderColor: BLANCO, color: BLANCO },
+  tr: { flexDirection: "row", borderBottomWidth: 1, borderColor: BORDE, backgroundColor: BLANCO },
   td: { padding: 2.5, borderRightWidth: 1, borderColor: BORDE, fontSize: 7.8 },
   box: { width: 10, height: 10, borderWidth: 1, borderColor: BORDE, alignSelf: "center", marginTop: 2 },
   // referencias
-  refTitulo: { fontFamily: B, fontSize: 9, marginTop: 14, paddingBottom: 3, borderBottomWidth: 1, borderColor: BORDE },
+  refTitulo: { fontFamily: B, fontSize: 9, marginTop: 14, paddingVertical: 3, paddingHorizontal: 5, backgroundColor: VERDE_CLARO, color: VERDE_OSCURO, borderBottomWidth: 1, borderColor: VERDE },
   refBloque: { marginTop: 6 },
-  refItem: { fontFamily: B, fontSize: 8 },
+  refItem: { fontFamily: B, fontSize: 8, color: VERDE_OSCURO },
   refFotos: { flexDirection: "row", flexWrap: "wrap", marginTop: 4 },
-  refFoto: { width: 170, marginRight: 8, marginBottom: 6, borderWidth: 0.5, borderColor: "#BFBFBF", padding: 3 },
+  refFoto: { width: 170, marginRight: 8, marginBottom: 6, borderWidth: 0.5, borderColor: BORDE, padding: 3, backgroundColor: BLANCO },
   refImg: { width: 162, height: 122, objectFit: "contain" },
   refPie: { fontSize: 6.5, color: GRIS_TEXTO, marginTop: 2 },
   refAviso: { fontSize: 7, color: GRIS_TEXTO, marginTop: 2 },
@@ -74,13 +78,11 @@ const s = StyleSheet.create({
   // firmas
   firmas: { flexDirection: "row", justifyContent: "space-between", marginTop: 34 },
   firma: { width: "30%", alignItems: "center" },
-  firmaLinea: { borderTopWidth: 0.8, borderColor: BORDE, width: "100%", marginBottom: 3 },
+  firmaLinea: { borderTopWidth: 0.8, borderColor: VERDE, width: "100%", marginBottom: 3 },
   // pie
-  pie: { position: "absolute", left: 30, right: 30, bottom: 18 },
-  pieLinea: { borderTopWidth: 0.8, borderColor: BORDE, marginBottom: 4 },
-  pieEmpresa: { fontSize: 7, textAlign: "right", lineHeight: 1.25 },
-  pieConf: { fontSize: 7, fontStyle: "italic", color: "#4A6B2A", marginTop: 4 },
-  piePagina: { fontSize: 7.5, fontFamily: B, textAlign: "right", marginTop: 2 }
+  pie: { position: "absolute", left: 30, right: 30, bottom: 68, flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end" },
+  pieConf: { width: "90%", fontSize: 6.5, fontStyle: "italic", color: VERDE_OSCURO },
+  piePagina: { fontSize: 8, color: GRIS_TEXTO, textAlign: "right" }
 });
 
 const COLS = [
@@ -108,17 +110,16 @@ function Fila({ l, v }: { l: string; v: string }) {
   );
 }
 
-function Documento({ d, logo }: { d: SolicitudPdfData; logo: string | null }) {
+function Documento({ d, fondo }: { d: SolicitudPdfData; fondo: string | null }) {
   const num = String(d.numero).padStart(6, "0");
   return (
     <Page size="A4" style={s.page}>
       {/* Cabecera */}
-      <View style={s.top}>
-        <View>
-          <Text style={s.titulo}>SOLICITUD DE PEDIDO</Text>
-          <Text style={s.subtitulo}>GTO PERU · Módulo de Logística y Compras</Text>
-        </View>
-        {logo ? <Image src={logo} style={s.logo} /> : <View />}
+      {fondo ? <Image src={fondo} style={s.fondo} fixed /> : null}
+      <View style={s.top} fixed>
+        <Text style={s.titulo}>SOLICITUD DE PEDIDO</Text>
+        <Text style={s.subtitulo}>GTO PERU · Módulo de Logística y Compras</Text>
+        <Text style={s.numero}>N° {num}</Text>
       </View>
 
       <View style={s.refRow}>
@@ -270,15 +271,11 @@ function Documento({ d, logo }: { d: SolicitudPdfData; logo: string | null }) {
 
       {/* Pie de página */}
       <View style={s.pie} fixed>
-        <View style={s.pieLinea} />
-        <Text style={s.pieEmpresa}>
-          {`${EMPRESA.nombreLegal}\nRUC ${EMPRESA.ruc}\n${EMPRESA.direccionCorta}\n${EMPRESA.web}`}
-        </Text>
         <Text style={s.pieConf}>
           Documento interno de GTO PERU. Impreso por {d.generadoPor} el {d.generadoEl} desde el Módulo de Logística y Compras; el
           estado vigente es el que figura en el sistema.
         </Text>
-        <Text style={s.piePagina} render={({ pageNumber, totalPages }) => `Página ${pageNumber} de ${totalPages}`} />
+        <Text style={s.piePagina} render={({ pageNumber, totalPages }) => `${pageNumber} | ${totalPages}`} />
       </View>
     </Page>
   );
@@ -286,12 +283,13 @@ function Documento({ d, logo }: { d: SolicitudPdfData; logo: string | null }) {
 
 export async function generarSolicitudPdf(d: SolicitudPdfData): Promise<Buffer> {
   const fs = await import("node:fs");
-  const logoPath = path.join(process.cwd(), "public", "logo-gto.png");
-  let logo: string | null = null;
-  if (fs.existsSync(logoPath)) logo = `data:image/png;base64,${fs.readFileSync(logoPath).toString("base64")}`;
+  // Hoja membretada GTO PERU como fondo de cada página
+  const fondoPath = path.join(process.cwd(), "public", "membrete-gto.jpg");
+  let fondo: string | null = null;
+  if (fs.existsSync(fondoPath)) fondo = `data:image/jpeg;base64,${fs.readFileSync(fondoPath).toString("base64")}`;
   return await renderToBuffer(
     <Document title={`Solicitud de pedido ${d.numero}`}>
-      <Documento d={d} logo={logo} />
+      <Documento d={d} fondo={fondo} />
     </Document>
   );
 }
