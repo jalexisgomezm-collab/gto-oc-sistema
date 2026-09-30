@@ -21,6 +21,7 @@ const gruposCompras = [
       { href: "/dashboard", label: "Dashboard por área", exacto: true },
       { href: "/solicitudes", label: "Solicitudes", exacto: true },
       { href: "/solicitudes/nueva", label: "Nueva solicitud" },
+      { href: "/reportes", label: "Reporte de solicitudes" },
       { href: "/proyectos", label: "Proyectos / órdenes de trabajo" },
       { href: "/productos", label: "Catálogo de productos" }
     ]
