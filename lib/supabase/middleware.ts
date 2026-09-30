@@ -57,6 +57,23 @@ export async function updateSession(request: NextRequest) {
     const { data } = await supabase.rpc("mi_perfil");
     const perfil = Array.isArray(data) ? data[0] : data;
     const esCompras = !!perfil?.es_compras;
+    const esMaestro = !!perfil?.es_maestro;
+    // Rol "administracion": todo el módulo excepto crear/editar OT y PI (Maestro de Gestión) y Usuarios y accesos
+    const bloqueaMaestro =
+      esCompras &&
+      !esMaestro &&
+      (path === "/proyectos" ||
+        path.startsWith("/proyectos/") ||
+        path === "/usuarios" ||
+        path.startsWith("/usuarios/") ||
+        (path.startsWith("/api/proyectos") && request.method !== "GET"));
+    if (bloqueaMaestro) {
+      if (path.startsWith("/api/")) return NextResponse.json({ error: "Tu usuario no tiene acceso a esta sección" }, { status: 403 });
+      const url = request.nextUrl.clone();
+      url.pathname = "/solicitudes";
+      url.search = "";
+      return NextResponse.redirect(url);
+    }
     if (!esCompras && !permitidoParaSolicitante(path, request.method)) {
       if (path.startsWith("/api/")) {
         return NextResponse.json({ error: "Tu usuario solo tiene acceso a solicitudes de pedido" }, { status: 403 });

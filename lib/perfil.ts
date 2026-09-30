@@ -4,6 +4,7 @@ export interface Perfil {
   rol: string;
   area: string | null;
   es_compras: boolean;
+  es_maestro: boolean;
 }
 
 /** Perfil del usuario con sesión (rol y área). Si no tiene perfil se trata como solicitante. */
@@ -12,12 +13,13 @@ export async function obtenerPerfil(supabase: any): Promise<Perfil | null> {
   if (error) return null;
   const fila = Array.isArray(data) ? data[0] : data;
   if (!fila) return null;
-  return { ...fila, es_compras: !!fila.es_compras };
+  return { ...fila, es_compras: !!fila.es_compras, es_maestro: !!fila.es_maestro };
 }
 
 export const ROL_LABEL: Record<string, string> = {
   admin: "Compras / Administrador",
   usuario: "Compras / Administrador",
   compras: "Compras",
+  administracion: "Administración (sin Maestro)",
   solicitante: "Solicitante de área"
 };

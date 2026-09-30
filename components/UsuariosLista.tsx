@@ -95,6 +95,7 @@ export default function UsuariosLista({ usuarios, miId }: { usuarios: Usuario[];
                     >
                       <option value="solicitante">Solicitante de área</option>
                       <option value="compras">Compras (acceso total)</option>
+                      <option value="administracion">Administración (todo menos Maestro)</option>
                     </select>
                   )}
                 </td>

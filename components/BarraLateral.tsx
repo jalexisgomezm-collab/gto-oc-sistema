@@ -50,15 +50,24 @@ export default function BarraLateral({
   nombre,
   correo,
   esCompras,
+  esMaestro = true,
   rolTexto
 }: {
   nombre: string;
   correo: string;
   esCompras: boolean;
+  esMaestro?: boolean;
   rolTexto: string;
 }) {
   const pathname = usePathname();
-  const grupos = esCompras ? gruposCompras : gruposSolicitante;
+  // Sin acceso al Maestro de Gestión: se oculta la gestión de OT/PI
+  const grupos = esCompras
+    ? esMaestro
+      ? gruposCompras
+      : gruposCompras
+          .map((g) => ({ ...g, enlaces: g.enlaces.filter((e) => e.href !== "/proyectos" && e.href !== "/usuarios") }))
+          .filter((g) => g.enlaces.length > 0)
+    : gruposSolicitante;
   const base = nombre || correo || "";
   const iniciales =
     base

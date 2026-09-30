@@ -6,7 +6,7 @@ import UsuariosLista from "@/components/UsuariosLista";
 export default async function UsuariosPage() {
   const supabase = await createClient();
   const perfil = await obtenerPerfil(supabase);
-  if (!perfil?.es_compras) redirect("/solicitudes");
+  if (!perfil?.es_maestro) redirect("/solicitudes");
 
   const { data: usuarios, error } = await supabase.rpc("listar_usuarios");
 
