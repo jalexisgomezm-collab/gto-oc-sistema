@@ -83,14 +83,19 @@ const s = StyleSheet.create({
 
 const COLS = [
   { k: "item", label: "Ítem\nNo.", w: 34 },
-  { k: "desc", label: "Descripción", w: 205 },
+  { k: "desc", label: "Descripción", w: 158 },
   { k: "cant", label: "Cantidad", w: 42, right: true },
-  { k: "um", label: "Unidad\nMedida", w: 36 },
-  { k: "precio", label: "INDICAR\nPrecio Unitario\n(Inc. IGV)", w: 62 },
-  { k: "lugar", label: "INDICAR\nTienda / Proveedor", w: 76 },
-  { k: "comp", label: "Com-\nprado", w: 39, center: true },
-  { k: "rec", label: "Reci-\nbido", w: 41, center: true }
+  { k: "um", label: "Unidad\nMedida", w: 38 },
+  { k: "obs", label: "Observación", w: 140 },
+  { k: "enl", label: "Enlaces de referencia", w: 123 }
 ];
+
+/** Texto corto y partido en líneas para mostrar un enlace dentro de una columna angosta (el clic abre la URL completa). */
+function etiquetaEnlace(url: string) {
+  let t = url.replace(/^https?:\/\/(www\.)?/i, "");
+  if (t.length > 60) t = t.slice(0, 59) + "…";
+  return t.match(/.{1,30}/g)?.join("\n") || t;
+}
 
 function Fila({ l, v }: { l: string; v: string }) {
   return (
@@ -172,7 +177,7 @@ function Documento({ d, logo }: { d: SolicitudPdfData; logo: string | null }) {
           {COLS.map((c, i) => (
             <Text
               key={c.k}
-              style={[s.thCell, { width: c.w, textAlign: c.center ? "center" : "left" }, i === COLS.length - 1 ? { borderRightWidth: 0 } : {}]}
+              style={[s.thCell, { width: c.w, textAlign: "left" }, i === COLS.length - 1 ? { borderRightWidth: 0 } : {}]}
             >
               {c.label}
             </Text>
@@ -183,44 +188,41 @@ function Documento({ d, logo }: { d: SolicitudPdfData; logo: string | null }) {
             <Text style={[s.td, { width: COLS[0].w }]}>{String((i + 1) * 10).padStart(5, "0")}</Text>
             <View style={[s.td, { width: COLS[1].w }]}>
               <Text style={{ fontFamily: B }}>{it.descripcion}</Text>
-              {it.observacion ? <Text style={{ marginTop: 2 }}>{it.observacion}</Text> : null}
-              {it.fotos.length + it.fotosNoMostradas + it.enlaces.length > 0 ? (
+              {it.fotos.length + it.fotosNoMostradas > 0 ? (
                 <Text style={{ marginTop: 2, color: GRIS_TEXTO, fontSize: 7 }}>
-                  Ref.: {[
-                    it.fotos.length + it.fotosNoMostradas ? `${it.fotos.length + it.fotosNoMostradas} foto(s)` : null,
-                    it.enlaces.length ? `${it.enlaces.length} enlace(s)` : null
-                  ]
-                    .filter(Boolean)
-                    .join(", ")}{" "}
-                  (ver Referencias)
+                  {it.fotos.length + it.fotosNoMostradas} foto(s) de referencia (ver al final)
                 </Text>
               ) : null}
             </View>
             <Text style={[s.td, { width: COLS[2].w, textAlign: "right" }]}>{String(it.cantidad)}</Text>
             <Text style={[s.td, { width: COLS[3].w }]}>{it.um}</Text>
-            <View style={[s.td, { width: COLS[4].w }]} />
-            <View style={[s.td, { width: COLS[5].w }]} />
-            <View style={[s.td, { width: COLS[6].w }]}>
-              <View style={s.box} />
-            </View>
-            <View style={[s.td, { width: COLS[7].w, borderRightWidth: 0 }]}>
-              <View style={s.box} />
+            <Text style={[s.td, { width: COLS[4].w, fontSize: 7.5 }]}>{it.observacion || "—"}</Text>
+            <View style={[s.td, { width: COLS[5].w, borderRightWidth: 0 }]}>
+              {it.enlaces.length === 0 ? (
+                <Text style={{ fontSize: 7.5 }}>—</Text>
+              ) : (
+                it.enlaces.map((e, k) => (
+                  <Link key={k} src={e.url} style={{ fontSize: 6.5, color: "#1F4E79", marginBottom: 2 }}>
+                    {`${it.enlaces.length > 1 ? `${k + 1}. ` : ""}${etiquetaEnlace(e.url)}`}
+                  </Link>
+                ))
+              )}
             </View>
           </View>
         ))}
       </View>
       <Text style={{ fontSize: 7, color: GRIS_TEXTO, marginTop: 3 }}>
-        Anotar precio y tienda al comprar. Marcar &quot;Comprado&quot; al adquirir cada ítem y &quot;Recibido&quot; cuando el área lo recibe conforme.
+        Los enlaces de referencia se abren con un clic desde el PDF.
       </Text>
 
       {/* Referencias: fotos y enlaces de cada ítem */}
-      {d.items.some((it) => it.fotos.length + it.fotosNoMostradas + it.enlaces.length > 0) ? (
+      {d.items.some((it) => it.fotos.length + it.fotosNoMostradas > 0) ? (
         <View>
           <Text style={s.refTitulo} minPresenceAhead={60}>
-            Referencias adjuntas
+            Fotos de referencia
           </Text>
           {d.items.map((it, i) =>
-            it.fotos.length + it.fotosNoMostradas + it.enlaces.length === 0 ? null : (
+            it.fotos.length + it.fotosNoMostradas === 0 ? null : (
               <View key={i} style={s.refBloque}>
                 <Text style={s.refItem} minPresenceAhead={40}>
                   Ítem {String((i + 1) * 10).padStart(5, "0")} · {it.descripcion}
@@ -240,11 +242,6 @@ function Documento({ d, logo }: { d: SolicitudPdfData; logo: string | null }) {
                     {it.fotosNoMostradas} imagen(es) en un formato que no se puede imprimir; véanse en el sistema.
                   </Text>
                 ) : null}
-                {it.enlaces.map((e, k) => (
-                  <Text key={k} style={s.refEnlace}>
-                    Enlace: <Link src={e.url}>{e.url}</Link>
-                  </Text>
-                ))}
               </View>
             )
           )}
