@@ -28,7 +28,7 @@ export default async function NuevaOrdenPage({
   if (solicitudId) {
     const { data } = await supabase
       .from("solicitudes_pedido")
-      .select("id, numero, solicitante, proyecto_id, observaciones, orden_id, proyectos(nombre, cliente, numero_orden_trabajo), solicitud_items(*), solicitud_cotizaciones!solicitud_cotizaciones_solicitud_id_fkey(*)")
+      .select("id, numero, solicitante, proyecto_id, observaciones, orden_id, proyectos(nombre, cliente, numero_orden_trabajo), solicitud_items(*, catalogo_productos(codigo)), solicitud_cotizaciones!solicitud_cotizaciones_solicitud_id_fkey(*)")
       .eq("id", solicitudId)
       .single();
     solicitud = data;
@@ -84,7 +84,7 @@ export default async function NuevaOrdenPage({
       .map(({ it, pendiente }: any) => ({
         cantidad: fmtCant(Math.min(pendiente, elegidos.get(it.id) ?? pendiente)),
         um: it.um || "UND",
-        codigo: "",
+        codigo: it.catalogo_productos?.codigo || "",
         descripcion: it.descripcion,
         entrega: "",
         valor_unitario: precioDe(it.id),
