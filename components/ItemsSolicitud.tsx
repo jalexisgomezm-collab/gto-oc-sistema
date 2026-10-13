@@ -23,6 +23,7 @@ export interface ItemSolicitud {
   um: string | null;
   observacion: string | null;
   solicitud_item_adjuntos?: Adjunto[];
+  catalogo_productos?: { codigo: string | null } | null;
 }
 
 export default function ItemsSolicitud({
@@ -163,6 +164,11 @@ export default function ItemsSolicitud({
                     <div>
                       <p className="text-sm font-medium">
                         {idx + 1}. {it.descripcion}
+                        {it.catalogo_productos?.codigo && (
+                          <span className="ml-2 font-mono text-[11px] font-normal text-verde-oscuro bg-verde-claro px-1.5 py-0.5 rounded">
+                            {it.catalogo_productos.codigo}
+                          </span>
+                        )}
                       </p>
                       <p className="text-xs text-gray-500 mt-0.5">
                         Cantidad: {fmtCant(Number(it.cantidad))} {it.um}

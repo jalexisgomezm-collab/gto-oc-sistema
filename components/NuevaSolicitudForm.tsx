@@ -14,11 +14,12 @@ interface Adjunto {
 
 interface ItemSolicitud {
   productoId: string | null;
+  codigo?: string | null;
   descripcion: string;
   cantidad: string;
   um: string;
   observacion: string;
-  sugerencias: { id: string; descripcion: string; um: string }[];
+  sugerencias: { id: string; descripcion: string; um: string; codigo?: string | null }[];
   mostrarSugerencias: boolean;
   adjuntos: Adjunto[];
   subiendoAdjunto: boolean;
@@ -93,7 +94,7 @@ export default function NuevaSolicitudForm({
   }
 
   async function buscarSugerencias(idx: number, texto: string) {
-    actualizarItem(idx, { descripcion: texto, productoId: null });
+    actualizarItem(idx, { descripcion: texto, productoId: null, codigo: null });
     if (texto.trim().length < 2) {
       actualizarItem(idx, { sugerencias: [], mostrarSugerencias: false });
       return;
@@ -107,9 +108,10 @@ export default function NuevaSolicitudForm({
     }
   }
 
-  function elegirSugerencia(idx: number, p: { id: string; descripcion: string; um: string }) {
+  function elegirSugerencia(idx: number, p: { id: string; descripcion: string; um: string; codigo?: string | null }) {
     actualizarItem(idx, {
       productoId: p.id,
+      codigo: p.codigo || null,
       descripcion: p.descripcion,
       um: p.um || "UND",
       sugerencias: [],
@@ -341,13 +343,18 @@ export default function NuevaSolicitudForm({
                             onMouseDown={() => elegirSugerencia(idx, s)}
                             className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50"
                           >
+                            {s.codigo && <span className="font-mono text-[11px] text-verde mr-1.5">{s.codigo}</span>}
                             {s.descripcion} <span className="text-xs text-gray-400">({s.um})</span>
                           </button>
                         </li>
                       ))}
                     </ul>
                   )}
-                  {it.productoId && <p className="text-xs text-verde mt-0.5">Producto del catálogo</p>}
+                  {it.productoId && (
+                    <p className="text-xs text-verde mt-0.5">
+                      Producto del catálogo{it.codigo ? ` · ${it.codigo}` : ""}
+                    </p>
+                  )}
                 </div>
                 <div className="col-span-2">
                   <label className="block text-xs text-gray-500 mb-1">Cantidad</label>
