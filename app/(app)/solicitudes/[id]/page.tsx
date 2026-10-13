@@ -21,7 +21,7 @@ export default async function SolicitudDetallePage({ params }: { params: Promise
 
   const { data: solicitud } = await supabase
     .from("solicitudes_pedido")
-    .select("*, proyectos(nombre, tipo, cliente, numero_oc_cliente, numero_orden_trabajo), solicitud_items(*, solicitud_item_adjuntos(*))")
+    .select("*, proyectos(nombre, tipo, cliente, numero_oc_cliente, numero_orden_trabajo), solicitud_items(*, solicitud_item_adjuntos(*), catalogo_productos(codigo))")
     .eq("id", id)
     .single();
 
