@@ -16,12 +16,15 @@ export async function GET(req: NextRequest) {
 
   let query = supabase
     .from("catalogo_productos")
-    .select("id, descripcion, um, codigo, activo, imagen_url")
+    .select("id, descripcion, um, codigo, familia, activo, imagen_url")
     .order("descripcion", { ascending: true })
     .limit(soloActivos ? 20 : 500);
 
   if (soloActivos) query = query.eq("activo", true);
-  if (q) query = query.ilike("descripcion", `%${q.replace(/[%,]/g, "")}%`);
+  if (q) {
+    const limpio = q.replace(/[%,()*]/g, "");
+    query = query.or(`descripcion.ilike.%${limpio}%,codigo.ilike.%${limpio}%`);
+  }
 
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -41,13 +44,14 @@ export async function POST(req: NextRequest) {
   if (!descripcion) return NextResponse.json({ error: "La descripción es obligatoria" }, { status: 400 });
 
   const um = (body.um || "UND").trim() || "UND";
-  const codigo = body.codigo ? String(body.codigo).trim() : null;
+  // el código se asigna solo (FAMILIA-0001); la familia es opcional: si no se indica, se sugiere por la descripción
+  const familia = body.familia ? String(body.familia).trim().toUpperCase() : null;
   const imagenUrl = body.imagen_url ? String(body.imagen_url).trim() : null;
 
   // Ya existe un producto con esa descripción (sin importar mayúsculas/minúsculas): lo reutilizamos.
   const { data: existente } = await supabase
     .from("catalogo_productos")
-    .select("id, descripcion, um, codigo, activo, imagen_url")
+    .select("id, descripcion, um, codigo, familia, activo, imagen_url")
     .ilike("descripcion", descripcion)
     .maybeSingle();
   if (existente) {
@@ -63,8 +67,8 @@ export async function POST(req: NextRequest) {
 
   const { data, error } = await supabase
     .from("catalogo_productos")
-    .insert({ descripcion, um, codigo, activo: true, imagen_url: imagenUrl })
-    .select("id, descripcion, um, codigo, activo, imagen_url")
+    .insert({ descripcion, um, familia, activo: true, imagen_url: imagenUrl })
+    .select("id, descripcion, um, codigo, familia, activo, imagen_url")
     .single();
 
   if (error) {
@@ -72,7 +76,7 @@ export async function POST(req: NextRequest) {
     if ((error as any).code === "23505") {
       const { data: creadoAhora } = await supabase
         .from("catalogo_productos")
-        .select("id, descripcion, um, codigo, activo, imagen_url")
+        .select("id, descripcion, um, codigo, familia, activo, imagen_url")
         .ilike("descripcion", descripcion)
         .maybeSingle();
       if (creadoAhora) return NextResponse.json({ producto: creadoAhora });
