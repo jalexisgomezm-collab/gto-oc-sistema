@@ -41,7 +41,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   // RLS: cada usuario solo obtiene las solicitudes que puede ver
   const { data: sol } = await supabase
     .from("solicitudes_pedido")
-    .select("*, proyectos(nombre, cliente, numero_orden_trabajo, numero_oc_cliente), solicitud_items(*, solicitud_item_adjuntos(tipo, url, nombre, created_at))")
+    .select("*, proyectos(nombre, cliente, numero_orden_trabajo, numero_oc_cliente), solicitud_items(*, catalogo_productos(codigo), solicitud_item_adjuntos(tipo, url, nombre, created_at))")
     .eq("id", id)
     .single();
   if (!sol) return NextResponse.json({ error: "Solicitud no encontrada" }, { status: 404 });
@@ -98,6 +98,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
             ? `${est.etiqueta} — ${ats.map((a) => `${textoAtencion(a)} (${fmtCant(Number(a.cantidad))})`).join("; ")}`
             : null;
           return {
+            codigo: it.catalogo_productos?.codigo || null,
             atencion,
             cantidad: Number(it.cantidad),
             um: it.um || "UND",
