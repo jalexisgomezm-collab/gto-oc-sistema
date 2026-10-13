@@ -65,9 +65,8 @@ export default function AtencionSolicitud({
   const router = useRouter();
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
   const [monto, setMonto] = useState("");
-  // si ya hay compras menores en la solicitud, se sigue en la misma moneda
-  const monedaFija = (compras[0]?.moneda as MonedaCM | undefined) || null;
-  const [moneda, setMoneda] = useState<MonedaCM>(monedaFija || "SOLES");
+  // cada compra puede ser en soles o en dólares; el límite se controla por moneda
+  const [moneda, setMoneda] = useState<MonedaCM>("SOLES");
   const [proveedor, setProveedor] = useState("");
   const [medio, setMedio] = useState("CAJA_CHICA");
   const [tipoComp, setTipoComp] = useState("BOLETA");
@@ -81,9 +80,9 @@ export default function AtencionSolicitud({
   const [error, setError] = useState<string | null>(null);
 
   const cerrada = estado === "anulada" || estado === "atendida";
-  const monedaCompras: MonedaCM = monedaFija || "SOLES";
-  const gastado = compras.reduce((a, c) => a + Number(c.monto), 0);
-  const limiteCompras = limites[monedaCompras];
+  const gastadoPor = (m: MonedaCM) => compras.filter((c) => (c.moneda || "SOLES") === m).reduce((a, c) => a + Number(c.monto), 0);
+  const monedasUsadas = (["SOLES", "DOLARES"] as MonedaCM[]).filter((m) => compras.some((c) => (c.moneda || "SOLES") === m));
+  const quedaSaldo = (["SOLES", "DOLARES"] as MonedaCM[]).some((m) => gastadoPor(m) < limites[m]);
   const limite = limites[moneda];
   const gastadoMoneda = compras.filter((c) => (c.moneda || "SOLES") === moneda).reduce((a, c) => a + Number(c.monto), 0);
   // el total debe quedar por debajo del límite
@@ -260,8 +259,8 @@ export default function AtencionSolicitud({
             </tbody>
           </table>
           <p className="text-xs text-gray-500 mt-2">
-            Total {dinero(gastado, monedaCompras)}; debe ser menor a {dinero(limiteCompras, monedaCompras)}.
-            {!cerrada && gastado < limiteCompras && " Para otra compra, marca los ítems pendientes arriba y elige Compra menor."}
+            {monedasUsadas.map((m) => `Total en ${m === "DOLARES" ? "dólares" : "soles"}: ${dinero(gastadoPor(m), m)} (debe ser menor a ${dinero(limites[m], m)})`).join(" · ")}.
+            {!cerrada && quedaSaldo && " Para otra compra, marca los ítems pendientes arriba y elige Compra menor."}
           </p>
         </div>
       )}
@@ -283,8 +282,7 @@ export default function AtencionSolicitud({
                 <select
                   value={moneda}
                   onChange={(e) => setMoneda(e.target.value as MonedaCM)}
-                  disabled={!!monedaFija}
-                  title={monedaFija ? "Esta solicitud ya tiene compras en esta moneda" : "Moneda"}
+                  title="Moneda de la compra"
                   className="border border-gray-300 rounded-md px-2 py-2 text-sm disabled:bg-gray-50"
                 >
                   <option value="SOLES">S/</option>
