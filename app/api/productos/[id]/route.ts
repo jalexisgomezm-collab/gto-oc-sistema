@@ -16,15 +16,15 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!descripcion) return NextResponse.json({ error: "La descripción es obligatoria" }, { status: 400 });
 
   const um = (body.um || "UND").trim() || "UND";
-  const codigo = body.codigo ? String(body.codigo).trim() : null;
+  const familia = body.familia ? String(body.familia).trim().toUpperCase() : null;
   const activo = body.activo !== false;
   const imagenUrl = body.imagen_url ? String(body.imagen_url).trim() : null;
 
   const { data, error } = await supabase
     .from("catalogo_productos")
-    .update({ descripcion, um, codigo, activo, imagen_url: imagenUrl, updated_at: new Date().toISOString() })
+    .update({ descripcion, um, ...(familia ? { familia } : {}), activo, imagen_url: imagenUrl, updated_at: new Date().toISOString() })
     .eq("id", id)
-    .select("id, descripcion, um, codigo, activo, imagen_url")
+    .select("id, descripcion, um, codigo, familia, activo, imagen_url")
     .single();
 
   if (error) {
