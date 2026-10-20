@@ -18,3 +18,15 @@ export const GRIS_ZEBRA_HEX = "F2F2F2";
 export const VERDE_CLARO_HEX = "EAF7EF";
 export const GRIS_TEXTO_HEX = "555555";
 export const FUENTE = "Calibri";
+
+/**
+ * Orden nacional o internacional según el documento del proveedor:
+ * RUC peruano (11 dígitos) o DNI (8 dígitos) → nacional; cualquier otro (Tax ID, VAT, etc.) → internacional.
+ * En una orden internacional (importación) el proveedor no factura IGV.
+ */
+export function tipoOrden(docProveedor: string | null | undefined): "NACIONAL" | "INTERNACIONAL" {
+  const d = String(docProveedor || "").replace(/[\s.-]/g, "");
+  if (!d) return "NACIONAL";
+  return /^\d{8}$/.test(d) || /^\d{11}$/.test(d) ? "NACIONAL" : "INTERNACIONAL";
+}
+export const ETIQUETA_TIPO_ORDEN = { NACIONAL: "Nacional", INTERNACIONAL: "Internacional (importación)" } as const;
