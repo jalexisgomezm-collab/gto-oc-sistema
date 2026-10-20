@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { tipoOrden } from "@/lib/empresa";
 import { generarOrdenDocx } from "@/lib/docx/generarOrdenDocx";
 import { generarOrdenPdf } from "@/lib/pdf/generarOrdenPdf";
 import type { OrdenCompraData } from "@/lib/types";
@@ -82,7 +83,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const subtotal = Math.round(opGravadas * 100) / 100;
   const desc = Math.round((Number(descuento) || 0) * 100) / 100;
   const gravada = Math.round((subtotal - desc) * 100) / 100;
-  const igv = Math.round(gravada * 0.18 * 100) / 100;
+  // orden internacional (proveedor sin RUC/DNI peruano): el proveedor no factura IGV
+  const igv = tipoOrden(proveedor.ruc) === "INTERNACIONAL" ? 0 : Math.round(gravada * 0.18 * 100) / 100;
   const total = Math.round((gravada + igv) * 100) / 100;
 
   const { error: errUpdate } = await supabase
