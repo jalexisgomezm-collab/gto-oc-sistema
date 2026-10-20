@@ -21,7 +21,7 @@ import {
 } from "docx";
 import fs from "node:fs";
 import path from "node:path";
-import { EMPRESA, GRIS_TEXTO_HEX, FUENTE, VERDE_HEX, VERDE_CLARO_HEX } from "@/lib/empresa";
+import { EMPRESA, GRIS_TEXTO_HEX, FUENTE, VERDE_HEX, VERDE_CLARO_HEX, tipoOrden, ETIQUETA_TIPO_ORDEN } from "@/lib/empresa";
 import { montoALetras } from "@/lib/numeroALetras";
 import type { OrdenCompraData } from "@/lib/types";
 import { terminosOrden } from "@/lib/terminosOrden";
@@ -107,7 +107,9 @@ export async function generarOrdenDocx(data: OrdenCompraData): Promise<Buffer> {
   const subtotalItems = Math.round(opGravadas * 100) / 100;
   const descuento = Math.round((data.descuento || 0) * 100) / 100;
   opGravadas = Math.round((subtotalItems - descuento) * 100) / 100;
-  const igv = Math.round(opGravadas * 0.18 * 100) / 100;
+  const tipo = tipoOrden(prov.ruc);
+  const internacional = tipo === "INTERNACIONAL";
+  const igv = internacional ? 0 : Math.round(opGravadas * 0.18 * 100) / 100;
   const total = Math.round((opGravadas + igv) * 100) / 100;
   const son = montoALetras(total, monedaTexto);
   const totales: [string, number, boolean][] = [];
@@ -115,8 +117,12 @@ export async function generarOrdenDocx(data: OrdenCompraData): Promise<Buffer> {
     totales.push(["Subtotal", subtotalItems, false]);
     totales.push(["Descuento", -descuento, false]);
   }
-  totales.push(["Operación gravada", opGravadas, false]);
-  totales.push(["I.G.V. (18%)", igv, false]);
+  if (internacional) {
+    totales.push(["Valor de la importación", opGravadas, false]);
+  } else {
+    totales.push(["Operación gravada", opGravadas, false]);
+    totales.push(["I.G.V. (18%)", igv, false]);
+  }
   totales.push(["IMPORTE TOTAL", total, true]);
 
   const lugar = data.lugar_entrega || (data.origen || data.destino ? `${data.origen || ""} → ${data.destino || ""}` : "");
@@ -207,7 +213,7 @@ export async function generarOrdenDocx(data: OrdenCompraData): Promise<Buffer> {
     par([run("PROVEEDOR", { bold: true, color: VERDE })], { after: 3 }),
     ...(prov.codigo_proveedor ? [filaDato("Código:", prov.codigo_proveedor)] : []),
     filaDato("Razón social:", prov.razon_social || ""),
-    filaDato("R.U.C. / DNI:", prov.ruc || ""),
+    filaDato(internacional ? "Tax ID / Doc.:" : "R.U.C. / DNI:", prov.ruc || ""),
     filaDato("Dirección:", prov.direccion || ""),
     filaDato("ATT:", prov.contacto || ""),
     filaDato("Teléfono:", prov.telefono || ""),
@@ -215,8 +221,8 @@ export async function generarOrdenDocx(data: OrdenCompraData): Promise<Buffer> {
   ];
   const cajaComprador = [
     filaDato("Comprador:", data.comprador || "Área de Compras / Logística"),
-    filaDato("E:", correo1),
-    filaDato("T:", EMPRESA.celulares)
+    filaDato("Email:", correo1),
+    filaDato("Teléfonos:", EMPRESA.celulares)
   ];
   const cajaEntrega = [
     filaDato("Lugar de entrega:", lugar || `Sede operativa GTO PERU\n${EMPRESA.sedeOperativa}`),
@@ -225,18 +231,30 @@ export async function generarOrdenDocx(data: OrdenCompraData): Promise<Buffer> {
   ];
   const cajaRef = [
     filaDato("Ref. cotización:", data.doc_relacionado || ""),
-    filaDato("Tipo proveedor:", "Nacional"),
-    filaDato("Facturar a:", `${EMPRESA.nombreLegal}\nR.U.C. ${EMPRESA.ruc}`)
+    filaDato("Tipo de orden:", ETIQUETA_TIPO_ORDEN[tipo]),
+    filaDato("Facturar a:", `${EMPRESA.nombreLegal}\nR.U.C. ${EMPRESA.ruc}`),
+    filaDato("Dirección fiscal:", EMPRESA.domicilioFiscal),
+    par(
+      [
+        run(
+          internacional
+            ? "La factura (commercial invoice) debe emitirse a nombre de GTO PERU S.A.C. con esta dirección fiscal."
+            : "La factura debe emitirse a nombre de GTO PERU S.A.C., R.U.C. y dirección fiscal indicados.",
+          { size: 6.8, color: VERDE_OSCURO }
+        )
+      ],
+      { after: 0 }
+    )
   ];
 
   // ------------------------------------------------------------ ítems
   const escala = ANCHO / 535;
   const cols = incluirCodigo
-    ? [34, 46, 179, 40, 36, 58, 66, 76]
-    : [34, 0, 225, 40, 36, 58, 66, 76];
+    ? [34, 46, 237, 40, 36, 66, 76]
+    : [34, 0, 283, 40, 36, 66, 76];
   const anchos = cols.filter((w) => w > 0).map((w) => Math.round(w * escala));
   anchos[anchos.length - 1] += ANCHO - anchos.reduce((a, b) => a + b, 0);
-  const cab = ["Ítem No.", ...(incluirCodigo ? ["Código"] : []), "Descripción", "Cantidad", "Unidad Medida", "Fecha de entrega", `V. Unitario (sin IGV) ${monedaSym}`, `Importe (sin IGV) ${monedaSym}`];
+  const cab = ["Ítem No.", ...(incluirCodigo ? ["Código"] : []), "Descripción", "Cantidad", "Unidad Medida", `V. Unitario (sin IGV) ${monedaSym}`, `Importe (sin IGV) ${monedaSym}`];
   const derecha = (i: number) => {
     const nombre = cab[i];
     return nombre === "Cantidad" || nombre.startsWith("V. Unitario") || nombre.startsWith("Importe");
@@ -265,7 +283,6 @@ export async function generarOrdenDocx(data: OrdenCompraData): Promise<Buffer> {
               f.descripcion,
               String(f.cant),
               f.um,
-              f.entrega,
               money(f.vunit),
               money(f.vtotal)
             ].map((t, i) =>
@@ -289,7 +306,12 @@ export async function generarOrdenDocx(data: OrdenCompraData): Promise<Buffer> {
       ([l, v, dest], i) =>
         new TableRow({
           children: [
-            celda(i === 0 ? [par([run("SON: ", { bold: true }), run(`${son}.`)], { after: 0 })] : [vacio()], { w: wSon, margen: 40 }),
+            celda(i === 0 ? [
+                    par([run("SON: ", { bold: true }), run(`${son}.`)], { after: 0 }),
+                    ...(internacional
+                      ? [par([run("Orden internacional (importación): el proveedor no factura IGV; los tributos de importación se liquidan en aduanas.", { size: 7, italics: true })], { before: 3, after: 0 })]
+                      : [])
+                  ] : [vacio()], { w: wSon, margen: 40 }),
             celda([par([run(l, { bold: true, color: dest ? BLANCO : undefined })], { after: 0 })], { w: wTotL, bordes: "negro", fill: dest ? VERDE : undefined, margen: 40 }),
             celda([par([run(`${monedaSym} ${money(v)}`, { bold: dest, color: dest ? BLANCO : undefined })], { after: 0, align: AlignmentType.RIGHT })], {
               w: wTotV,
