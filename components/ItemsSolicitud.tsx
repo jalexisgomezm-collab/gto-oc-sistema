@@ -36,7 +36,8 @@ export default function ItemsSolicitud({
   compras,
   avisos,
   totalAreaMes,
-  elecciones = {}
+  elecciones = {},
+  puedeEditar = false
 }: {
   solicitudId: string;
   estado: string;
@@ -49,6 +50,8 @@ export default function ItemsSolicitud({
   totalAreaMes: string;
   /** proveedor elegido en el cuadro comparativo, por ítem (solo compras) */
   elecciones?: Record<string, string>;
+  /** compras o quien registró la solicitud: puede corregir producto / cantidad */
+  puedeEditar?: boolean;
 }) {
   const router = useRouter();
   const [sel, setSel] = useState<Record<string, string>>({});
@@ -57,6 +60,64 @@ export default function ItemsSolicitud({
   const [error, setError] = useState<string | null>(null);
 
   const cerrada = estado === "anulada" || estado === "atendida";
+
+  // ---------- corregir un ítem (producto, cantidad, U.M., observación)
+  type Edicion = { id: string; descripcion: string; cantidad: string; um: string; observacion: string; bloqueado: boolean; minimo: number };
+  const [ed, setEd] = useState<Edicion | null>(null);
+  const [guardando, setGuardando] = useState(false);
+  const [errorEd, setErrorEd] = useState<string | null>(null);
+  const [catalogo, setCatalogo] = useState<{ descripcion: string; um: string; codigo?: string | null }[] | null>(null);
+
+  function abrirEdicion(it: ItemSolicitud, ats: AtencionItem[]) {
+    const vigentes = ats.filter((a) => !a.orden_anulada);
+    setErrorEd(null);
+    setEd({
+      id: it.id,
+      descripcion: it.descripcion,
+      cantidad: fmtCant(Number(it.cantidad)),
+      um: it.um || "UND",
+      observacion: it.observacion || "",
+      bloqueado: vigentes.length > 0,
+      minimo: vigentes.reduce((s, a) => s + Number(a.cantidad || 0), 0)
+    });
+    if (!catalogo) {
+      fetch("/api/productos?todos=1")
+        .then((r) => (r.ok ? r.json() : { productos: [] }))
+        .then((d) => setCatalogo((d.productos || []).filter((p: any) => p.activo !== false)))
+        .catch(() => setCatalogo([]));
+    }
+  }
+
+  function elegirDelCatalogo(texto: string) {
+    if (!ed) return;
+    const p = (catalogo || []).find((c) => c.descripcion.toLowerCase() === texto.trim().toLowerCase());
+    setEd({ ...ed, descripcion: texto, um: p ? p.um || ed.um : ed.um });
+  }
+
+  async function guardarEdicion() {
+    if (!ed) return;
+    setErrorEd(null);
+    if (!ed.descripcion.trim()) return setErrorEd("Escribe o elige el producto");
+    const cant = Number(ed.cantidad);
+    if (!(cant > 0)) return setErrorEd("La cantidad debe ser mayor a cero");
+    if (cant + 0.0001 < ed.minimo) return setErrorEd(`No puede ser menor a lo ya atendido (${fmtCant(ed.minimo)})`);
+    setGuardando(true);
+    try {
+      const res = await fetch(`/api/solicitudes/${solicitudId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ item_id: ed.id, descripcion: ed.descripcion, cantidad: cant, um: ed.um, observacion: ed.observacion })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "No se pudo guardar");
+      setEd(null);
+      router.refresh();
+    } catch (e: any) {
+      setErrorEd(e.message || "No se pudo guardar");
+    } finally {
+      setGuardando(false);
+    }
+  }
 
   const filas = useMemo(
     () =>
@@ -176,6 +237,11 @@ export default function ItemsSolicitud({
                       </p>
                     </div>
                     <div className="text-right shrink-0">
+                      {puedeEditar && !cerrada && ed?.id !== it.id && est.clave !== "anulado" && (
+                        <button type="button" onClick={() => abrirEdicion(it, ats)} className="text-xs text-verde hover:underline mr-2">
+                          Editar
+                        </button>
+                      )}
                       <span className={`text-[11px] px-2 py-0.5 rounded-full ${est.estilo}`}>{est.etiqueta}</span>
                       {est.pendiente > 0 && est.atendida > 0 && (
                         <p className="text-[11px] text-gray-500 mt-1">
@@ -184,6 +250,70 @@ export default function ItemsSolicitud({
                       )}
                     </div>
                   </div>
+
+                  {ed?.id === it.id && (
+                    <div className="mt-3 border border-verde/40 bg-verde-claro/40 rounded-md p-3 space-y-2">
+                      <div className="grid grid-cols-12 gap-2">
+                        <div className="col-span-6">
+                          <label className="block text-[11px] text-gray-500 mb-0.5">Producto</label>
+                          <input
+                            list={`cat-${it.id}`}
+                            value={ed.descripcion}
+                            disabled={ed.bloqueado}
+                            onChange={(e) => elegirDelCatalogo(e.target.value)}
+                            className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm disabled:bg-gray-100 disabled:text-gray-500"
+                          />
+                          <datalist id={`cat-${it.id}`}>
+                            {(catalogo || []).map((c) => (
+                              <option key={c.descripcion} value={c.descripcion}>
+                                {c.codigo ? `${c.codigo} · ` : ""}
+                                {c.um}
+                              </option>
+                            ))}
+                          </datalist>
+                        </div>
+                        <div className="col-span-2">
+                          <label className="block text-[11px] text-gray-500 mb-0.5">Cantidad</label>
+                          <input
+                            type="number"
+                            step="any"
+                            min={ed.minimo || 0}
+                            value={ed.cantidad}
+                            onChange={(e) => setEd({ ...ed, cantidad: e.target.value })}
+                            className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
+                          />
+                        </div>
+                        <div className="col-span-1">
+                          <label className="block text-[11px] text-gray-500 mb-0.5">U.M.</label>
+                          <input value={ed.um} onChange={(e) => setEd({ ...ed, um: e.target.value })} className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm" />
+                        </div>
+                        <div className="col-span-3">
+                          <label className="block text-[11px] text-gray-500 mb-0.5">Observación</label>
+                          <input value={ed.observacion} onChange={(e) => setEd({ ...ed, observacion: e.target.value })} className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm" />
+                        </div>
+                      </div>
+                      {ed.bloqueado && (
+                        <p className="text-[11px] text-amber-700">
+                          Este ítem ya tiene una atención, por eso no se puede cambiar el producto; la cantidad puede corregirse sin bajar de {fmtCant(ed.minimo)}{" "}
+                          {it.um}.
+                        </p>
+                      )}
+                      {errorEd && <p className="text-xs text-red-600">{errorEd}</p>}
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          disabled={guardando}
+                          onClick={guardarEdicion}
+                          className="bg-verde text-white text-xs px-3 py-1.5 rounded-md hover:bg-verde-oscuro disabled:opacity-60"
+                        >
+                          {guardando ? "Guardando..." : "Guardar cambios"}
+                        </button>
+                        <button type="button" onClick={() => setEd(null)} className="text-xs text-gray-500 hover:underline">
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   {esCompras && elecciones[it.id] && est.pendiente > 0 && (
                     <p className="text-[11px] text-verde-oscuro mt-1">Proveedor elegido: {elecciones[it.id]}</p>
