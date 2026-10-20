@@ -234,6 +234,7 @@ export default async function SolicitudDetallePage({ params }: { params: Promise
         avisos={avisos}
         totalAreaMes={totalAreaMes}
         elecciones={elecciones}
+        puedeEditar={esCompras || (!!perfil?.id && solicitud.creado_por === perfil.id)}
       />
 
       {esCompras && (cotizaciones.length > 0 || (hayPendientes && solicitud.estado !== "anulada")) && (
