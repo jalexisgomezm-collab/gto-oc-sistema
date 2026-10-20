@@ -117,10 +117,28 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: `No se pudo actualizar la orden: ${errUpdate.message}` }, { status: 500 });
   }
 
-  await supabase.from("orden_items").delete().eq("orden_id", id);
-  const { error: errItems } = await supabase.from("orden_items").insert(itemsCalc.map((it) => ({ ...it, orden_id: id })));
-  if (errItems) {
-    return NextResponse.json({ error: `No se pudieron guardar los ítems: ${errItems.message}` }, { status: 500 });
+  // Se actualizan los ítems en su lugar (por posición) para no perder el vínculo con la solicitud de pedido
+  // (seguimiento por ítem); solo se agregan las posiciones nuevas y se quitan las que sobran.
+  const { data: existentes } = await supabase.from("orden_items").select("id, posicion").eq("orden_id", id);
+  const porPosicion = new Map<number, string>((existentes || []).map((e: any) => [Number(e.posicion), e.id as string]));
+  for (const it of itemsCalc) {
+    const idExistente = porPosicion.get(it.posicion);
+    const { error: errItem } = idExistente
+      ? await supabase.from("orden_items").update(it).eq("id", idExistente)
+      : await supabase.from("orden_items").insert({ ...it, orden_id: id });
+    if (errItem) {
+      return NextResponse.json({ error: `No se pudo guardar el ítem ${it.posicion}: ${errItem.message}` }, { status: 500 });
+    }
+  }
+  const sobrantes = (existentes || []).filter((e: any) => Number(e.posicion) > itemsCalc.length).map((e: any) => e.id);
+  if (sobrantes.length > 0) {
+    const { error: errDel } = await supabase.from("orden_items").delete().in("id", sobrantes);
+    if (errDel) {
+      return NextResponse.json(
+        { error: `Se guardaron los cambios, pero no se pudieron quitar ${sobrantes.length} ítem(s) (están vinculados a la solicitud de pedido): ${errDel.message}` },
+        { status: 500 }
+      );
+    }
   }
 
   const fechaEmisionTexto = new Date((fecha_emision || new Date().toISOString().slice(0, 10)) + "T00:00:00").toLocaleDateString("es-PE", {
