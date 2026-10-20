@@ -1,7 +1,7 @@
 "use client";
 
 import SelectorOT, { etiquetaOT } from "@/components/SelectorOT";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { AREAS } from "@/lib/solicitudes";
@@ -93,8 +93,38 @@ export default function NuevaSolicitudForm({
     });
   }
 
+  // catálogo completo (productos activos) para la lista desplegable: se carga una vez
+  type Prod = { id: string; descripcion: string; um: string; codigo?: string | null; activo?: boolean };
+  const [catalogo, setCatalogo] = useState<Prod[] | null>(null);
+  useEffect(() => {
+    fetch("/api/productos?todos=1")
+      .then((r) => (r.ok ? r.json() : { productos: [] }))
+      .then((d) => setCatalogo(((d.productos || []) as Prod[]).filter((p) => p.activo !== false)))
+      .catch(() => setCatalogo([]));
+  }, []);
+  const norm = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  function filtrarCatalogo(texto: string) {
+    const q = norm(texto.trim());
+    if (!catalogo) return [];
+    if (!q) return catalogo;
+    const palabras = q.split(/\s+/);
+    return catalogo.filter((p) => {
+      const t = norm(`${p.codigo || ""} ${p.descripcion}`);
+      return palabras.every((w) => t.includes(w));
+    });
+  }
+  function abrirLista(idx: number, texto: string) {
+    if (!catalogo || catalogo.length === 0) return;
+    actualizarItem(idx, { sugerencias: filtrarCatalogo(texto), mostrarSugerencias: true });
+  }
+
   async function buscarSugerencias(idx: number, texto: string) {
     actualizarItem(idx, { descripcion: texto, productoId: null, codigo: null });
+    // con el catálogo cargado se filtra al instante (y con el campo vacío se ve la lista completa)
+    if (catalogo && catalogo.length > 0) {
+      actualizarItem(idx, { sugerencias: filtrarCatalogo(texto), mostrarSugerencias: true });
+      return;
+    }
     if (texto.trim().length < 2) {
       actualizarItem(idx, { sugerencias: [], mostrarSugerencias: false });
       return;
@@ -326,16 +356,36 @@ export default function NuevaSolicitudForm({
               <div className="grid grid-cols-12 gap-2 items-start">
                 <div className="col-span-5 relative">
                   <label className="block text-xs text-gray-500 mb-1">Producto</label>
-                  <input
-                    value={it.descripcion}
-                    onChange={(e) => buscarSugerencias(idx, e.target.value)}
-                    onFocus={() => it.sugerencias.length > 0 && actualizarItem(idx, { mostrarSugerencias: true })}
-                    onBlur={() => setTimeout(() => actualizarItem(idx, { mostrarSugerencias: false }), 150)}
-                    placeholder="Escribe para buscar o crear un producto..."
-                    className="w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm"
-                  />
-                  {it.mostrarSugerencias && it.sugerencias.length > 0 && (
-                    <ul className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-sm max-h-48 overflow-y-auto">
+                  <div className="relative">
+                    <input
+                      value={it.descripcion}
+                      onChange={(e) => buscarSugerencias(idx, e.target.value)}
+                      onFocus={() => (it.productoId ? null : abrirLista(idx, it.descripcion))}
+                      onBlur={() => setTimeout(() => actualizarItem(idx, { mostrarSugerencias: false }), 150)}
+                      placeholder="Elige de la lista o escribe para buscar / crear..."
+                      className="w-full border border-gray-300 rounded-md pl-2 pr-8 py-1.5 text-sm"
+                    />
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      title="Ver productos del catálogo"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        if (it.mostrarSugerencias) actualizarItem(idx, { mostrarSugerencias: false });
+                        else abrirLista(idx, it.productoId ? "" : it.descripcion);
+                      }}
+                      className="absolute right-1 top-1/2 -translate-y-1/2 px-1.5 text-gray-400 hover:text-verde text-xs"
+                    >
+                      ▼
+                    </button>
+                  </div>
+                  {it.mostrarSugerencias && (
+                    <ul className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-md max-h-64 overflow-y-auto">
+                      <li className="px-3 py-1 text-[11px] text-gray-400 bg-gray-50 border-b border-gray-100 sticky top-0">
+                        {it.sugerencias.length > 0
+                          ? `${it.sugerencias.length} producto(s) del catálogo${it.descripcion.trim() && !it.productoId ? " que coinciden" : ""}`
+                          : "No está en el catálogo: se agregará como producto nuevo al enviar"}
+                      </li>
                       {it.sugerencias.map((s) => (
                         <li key={s.id}>
                           <button
