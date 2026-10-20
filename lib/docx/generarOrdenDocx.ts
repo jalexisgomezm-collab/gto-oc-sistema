@@ -24,6 +24,7 @@ import path from "node:path";
 import { EMPRESA, GRIS_TEXTO_HEX, FUENTE, VERDE_HEX, VERDE_CLARO_HEX } from "@/lib/empresa";
 import { montoALetras } from "@/lib/numeroALetras";
 import type { OrdenCompraData } from "@/lib/types";
+import { terminosOrden } from "@/lib/terminosOrden";
 
 // Formato con recuadros sobre la hoja membretada de GTO PERU, igual al PDF
 const CM_A_TWIPS = 566.929;
@@ -332,21 +333,43 @@ export async function generarOrdenDocx(data: OrdenCompraData): Promise<Buffer> {
     ...(data.condiciones_especiales || []).map((l) => linea(null, l)),
     ...((data.observaciones || "").trim() ? [linea(null, (data.observaciones || "").trim())] : []),
     legal(
-      "Aceptación de la orden:",
-      "El proveedor deberá confirmar la recepción y aceptación de esta orden dentro de un plazo máximo de dos (2) días calendario contados desde su envío. Si no comunica observaciones o rechazo dentro de dicho plazo, la orden se considerará aceptada tácitamente."
+      "Términos y condiciones:",
+      "Esta orden se rige por los Términos y Condiciones Generales de GTO PERÚ que se adjuntan (página siguiente) y forman parte de ella. Su aceptación implica la conformidad con dichos términos."
+    )
+  ];
+
+  // ------------------------------------------------------------ términos y condiciones generales (página aparte)
+  const tyc = terminosOrden(data as any);
+  const anchoDato = Math.floor(ANCHO / 4);
+  const filasDatos: TableRow[] = [];
+  for (let i = 0; i < tyc.datos.length; i += 4) {
+    filasDatos.push(
+      new TableRow({
+        children: tyc.datos.slice(i, i + 4).map(([l, v]) =>
+          celda([par([run(l, { bold: true, size: 6.5, color: VERDE_OSCURO })], { after: 1 }), par([run(v, { size: 7.5 })], { after: 0 })], {
+            w: anchoDato,
+            fill: VERDE_CLARO,
+            margen: 40
+          })
+        )
+      })
+    );
+  }
+  const terminosParas: (Paragraph | Table)[] = [
+    new Paragraph({ pageBreakBefore: true, alignment: AlignmentType.CENTER, spacing: { after: pt(2) }, children: [run(tyc.titulo, { bold: true, size: 15, color: VERDE })] }),
+    par([run(tyc.subtitulo, { bold: true, size: 9 })], { align: AlignmentType.CENTER, after: 8 }),
+    tabla(filasDatos, [anchoDato, anchoDato, anchoDato, anchoDato]),
+    par([run("CONDICIONES APLICABLES", { bold: true, size: 10, color: VERDE })], { before: 8, after: 4 }),
+    ...tyc.clausulas.map(
+      (c, i) =>
+        new Paragraph({
+          alignment: AlignmentType.JUSTIFIED,
+          spacing: { before: 0, after: pt(3) },
+          indent: { left: cm(0.55), hanging: cm(0.55) },
+          children: [run(`${i + 1}.\t`, { bold: true, size: 7.6, color: VERDE_OSCURO }), run(`${c.titulo}: `, { bold: true, size: 7.6, color: VERDE }), run(c.texto, { size: 7.6 })]
+        })
     ),
-    legal(
-      "Documentos para facturación:",
-      `Consignar el número de esta orden y adjuntar factura, guía de remisión o constancia del servicio y conformidad, cuando corresponda. Enviar a: ${correoFact}`
-    ),
-    ...(data.incluir_anticorrupcion !== false
-      ? [
-          legal(
-            "Cumplimiento:",
-            "El proveedor declara conocer y cumplir la legislación peruana e internacional en materia anticorrupción y antisoborno, absteniéndose de ofrecer o entregar cualquier beneficio indebido en el marco de esta orden."
-          )
-        ]
-      : [])
+    par([run(tyc.cierre, { bold: true, size: 8 })], { before: 6 })
   ];
 
   // ------------------------------------------------------------ pie
@@ -400,7 +423,8 @@ export async function generarOrdenDocx(data: OrdenCompraData): Promise<Buffer> {
           vacio(4),
           bloque("CUENTAS BANCARIAS DEL PROVEEDOR", cuentasParas),
           vacio(4),
-          bloque("OBSERVACIONES Y CONDICIONES", observaciones)
+          bloque("OBSERVACIONES Y CONDICIONES", observaciones),
+          ...terminosParas
         ]
       }
     ]
