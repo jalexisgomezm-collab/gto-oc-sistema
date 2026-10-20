@@ -17,6 +17,8 @@ interface ItemForm {
   descripcion: string;
   entrega: string;
   valor_unitario: string;
+  /** precio unitario con IGV (solo en pantalla; se guarda el valor sin IGV) */
+  precio_con_igv?: string;
   /** ítem de la solicitud de pedido del que viene (para el seguimiento por ítem) */
   solicitud_item_id?: string;
 }
@@ -52,7 +54,17 @@ interface ResultadoBusqueda {
   proveedores?: { razon_social: string; ruc: string } | null;
 }
 
-const itemVacio: ItemForm = { cantidad: "1", um: "UND", codigo: "", descripcion: "", entrega: "", valor_unitario: "" };
+const itemVacio: ItemForm = { cantidad: "1", um: "UND", codigo: "", descripcion: "", entrega: "", valor_unitario: "", precio_con_igv: "" };
+
+const IGV = 0.18;
+export const ABASTECIMIENTO_GENERAL = "ABASTECIMIENTO GENERAL";
+const r2 = (n: number) => Math.round(n * 100) / 100;
+/** número → texto sin ceros sobrantes (máx. `dec` decimales) */
+const txt = (n: number, dec: number) => (Number.isFinite(n) ? String(Number(n.toFixed(dec))) : "");
+const conIgvDe = (vu: string) => (vu === "" || isNaN(Number(vu)) ? "" : txt(Number(vu) * (1 + IGV), 2));
+const sinIgvDe = (pu: string) => (pu === "" || isNaN(Number(pu)) ? "" : txt(Number(pu) / (1 + IGV), 6));
+const conPrecios = (list: ItemForm[]) => list.map((it) => ({ ...it, precio_con_igv: it.precio_con_igv ?? conIgvDe(it.valor_unitario) }));
+const fmt = (n: number) => n.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function NuevaOrdenForm({
   proveedores,
@@ -88,7 +100,22 @@ export default function NuevaOrdenForm({
   const [incluirAnticorrupcion, setIncluirAnticorrupcion] = useState(inicial?.incluir_anticorrupcion ?? true);
   const [condicionesEspeciales, setCondicionesEspeciales] = useState(inicial?.condiciones_especiales || "");
   const [descuento, setDescuento] = useState(inicial?.descuento || "");
-  const [items, setItems] = useState<ItemForm[]>(inicial?.items && inicial.items.length > 0 ? inicial.items : [{ ...itemVacio }]);
+  const [items, setItems] = useState<ItemForm[]>(conPrecios(inicial?.items && inicial.items.length > 0 ? inicial.items : [{ ...itemVacio }]));
+  // destino de la compra: para una OT/proyecto o abastecimiento general (stock, almacén, uso común)
+  const [destinoCompra, setDestinoCompra] = useState<"OT" | "GENERAL">(
+    !inicial?.proyecto_id && (inicial?.centro_costos || "").trim().toUpperCase() === ABASTECIMIENTO_GENERAL ? "GENERAL" : "OT"
+  );
+
+  function elegirDestino(d: "OT" | "GENERAL") {
+    setDestinoCompra(d);
+    if (d === "GENERAL") {
+      setProyectoId(null);
+      setProyectoEtiqueta("");
+      setCentroCostos(ABASTECIMIENTO_GENERAL);
+    } else if (centroCostos.trim().toUpperCase() === ABASTECIMIENTO_GENERAL) {
+      setCentroCostos("");
+    }
+  }
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -134,6 +161,7 @@ export default function NuevaOrdenForm({
       setDestino(p.destino || "");
       setFechaEntrega(p.fecha_entrega || "");
       setCentroCostos(p.centro_costos || "");
+      setDestinoCompra((p.centro_costos || "").trim().toUpperCase() === ABASTECIMIENTO_GENERAL ? "GENERAL" : "OT");
       setDocRelacionado(p.doc_relacionado || "");
       setComprador(p.comprador || "");
       setGarantia(p.garantia || "");
@@ -142,7 +170,7 @@ export default function NuevaOrdenForm({
       setObservaciones(p.observaciones || "");
       setIncluirAnticorrupcion(p.incluir_anticorrupcion ?? true);
       setDescuento(p.descuento || "");
-      if (p.items && p.items.length > 0) setItems(p.items);
+      if (p.items && p.items.length > 0) setItems(conPrecios(p.items));
 
       setResultados([]);
       setBusqueda("");
@@ -157,7 +185,11 @@ export default function NuevaOrdenForm({
   function actualizarItem(idx: number, campo: keyof ItemForm, valor: string) {
     setItems((prev) => {
       const copia = [...prev];
-      copia[idx] = { ...copia[idx], [campo]: valor };
+      const it = { ...copia[idx], [campo]: valor };
+      // los dos precios van enlazados: se escribe uno y el otro se calcula (IGV 18 %)
+      if (campo === "valor_unitario") it.precio_con_igv = conIgvDe(valor);
+      if (campo === "precio_con_igv") it.valor_unitario = sinIgvDe(valor);
+      copia[idx] = it;
       return copia;
     });
   }
@@ -170,7 +202,14 @@ export default function NuevaOrdenForm({
     setItems((prev) => prev.filter((_, i) => i !== idx));
   }
 
-  const totalEstimado = items.reduce((acc, it) => acc + (Number(it.cantidad) || 0) * (Number(it.valor_unitario) || 0), 0);
+  // mismo cálculo que al emitir la orden (importe por ítem redondeado a 2 decimales)
+  const importeDe = (it: ItemForm) => r2((Number(it.cantidad) || 0) * (Number(it.valor_unitario) || 0));
+  const subtotal = r2(items.reduce((acc, it) => acc + importeDe(it), 0));
+  const desc = r2(Number(descuento) || 0);
+  const gravada = r2(subtotal - desc);
+  const igv = r2(gravada * IGV);
+  const total = r2(gravada + igv);
+  const sim = moneda === "DOLARES" ? "US$" : "S/";
 
   async function enviar(e: React.FormEvent) {
     e.preventDefault();
@@ -338,23 +377,50 @@ export default function NuevaOrdenForm({
           <Campo label="Cotización / doc. relacionado" value={docRelacionado} onChange={setDocRelacionado} />
           <Campo label="Solicitante / comprador" value={comprador} onChange={setComprador} />
           <div className="col-span-3">
-            <label className="block text-xs font-medium text-gray-600 mb-1">Orden de trabajo (opcional)</label>
-            <div className="max-w-xl">
-              <SelectorOT
-                valorId={proyectoId}
-                valorEtiqueta={proyectoEtiqueta}
-                onElegir={(p) => {
-                  setProyectoId(p ? p.id : null);
-                  setProyectoEtiqueta(p ? etiquetaOT(p) : "");
-                  if (p?.numero_orden_trabajo && !centroCostos.trim()) setCentroCostos(p.numero_orden_trabajo);
-                }}
-              />
+            <label className="block text-xs font-medium text-gray-600 mb-1">¿A qué corresponde esta compra?</label>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {([
+                ["OT", "Orden de trabajo / proyecto"],
+                ["GENERAL", "Abastecimiento general"]
+              ] as const).map(([k, l]) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => elegirDestino(k)}
+                  className={`text-sm px-3 py-1.5 rounded-md border ${
+                    destinoCompra === k ? "bg-verde-claro text-verde border-verde font-medium" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+                  }`}
+                >
+                  {destinoCompra === k ? "● " : "○ "}
+                  {l}
+                </button>
+              ))}
             </div>
-            <p className="text-xs text-gray-400 mt-1">
-              {proyectoId
-                ? `Enlazada a: ${proyectoEtiqueta}`
-                : "Elige la OT a la que corresponde esta compra; si el centro de costos está vacío se llena con el N° de OT."}
-            </p>
+            {destinoCompra === "OT" ? (
+              <>
+                <div className="max-w-xl">
+                  <SelectorOT
+                    valorId={proyectoId}
+                    valorEtiqueta={proyectoEtiqueta}
+                    onElegir={(p) => {
+                      setProyectoId(p ? p.id : null);
+                      setProyectoEtiqueta(p ? etiquetaOT(p) : "");
+                      if (p?.numero_orden_trabajo && !centroCostos.trim()) setCentroCostos(p.numero_orden_trabajo);
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-gray-400 mt-1">
+                  {proyectoId
+                    ? `Enlazada a: ${proyectoEtiqueta}`
+                    : "Elige la OT o proyecto (PI) a la que corresponde esta compra; si el centro de costos está vacío se llena con su N°."}
+                </p>
+              </>
+            ) : (
+              <p className="text-xs text-gray-500">
+                Compra para stock, almacén o uso común de la empresa (no se carga a ninguna OT). El centro de costos queda como{" "}
+                <span className="font-medium">{ABASTECIMIENTO_GENERAL}</span> y así sale en la orden.
+              </p>
+            )}
           </div>
         </div>
       </section>
@@ -369,7 +435,7 @@ export default function NuevaOrdenForm({
         <div className="space-y-3">
           {items.map((it, idx) => (
             <div key={idx} className="grid grid-cols-12 gap-2 items-end border-b border-gray-100 pb-3">
-              <div className="col-span-4">
+              <div className="col-span-3">
                 <label className="block text-xs text-gray-500 mb-1">
                   Descripción
                   {it.solicitud_item_id && <span className="ml-1 text-[10px] text-verde">(de la solicitud)</span>}
@@ -388,15 +454,21 @@ export default function NuevaOrdenForm({
                 <label className="block text-xs text-gray-500 mb-1">Código</label>
                 <input value={it.codigo} onChange={(e) => actualizarItem(idx, "codigo", e.target.value)} className="w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm" />
               </div>
-              <div className="col-span-2">
-                <label className="block text-xs text-gray-500 mb-1">Entrega (opcional)</label>
-                <input value={it.entrega} onChange={(e) => actualizarItem(idx, "entrega", e.target.value)} className="w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm" />
+              <div className="col-span-1">
+                <label className="block text-xs text-gray-500 mb-1">Entrega</label>
+                <input value={it.entrega} onChange={(e) => actualizarItem(idx, "entrega", e.target.value)} placeholder="opc." className="w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm" />
               </div>
               <div className="col-span-2">
-                <label className="block text-xs text-gray-500 mb-1">V. Unitario</label>
-                <input type="number" step="0.01" value={it.valor_unitario} onChange={(e) => actualizarItem(idx, "valor_unitario", e.target.value)} className="w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm" />
+                <label className="block text-xs text-gray-500 mb-1" title="Precio unitario incluido IGV. Al escribirlo se calcula el valor sin IGV.">P. Unit. con IGV</label>
+                <input type="number" step="any" value={it.precio_con_igv ?? ""} onChange={(e) => actualizarItem(idx, "precio_con_igv", e.target.value)} className="w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm" />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs text-gray-500 mb-1" title="Valor unitario sin IGV (es el que va en la orden). Al escribirlo se calcula el precio con IGV.">V. Unit. sin IGV</label>
+                <input type="number" step="any" value={it.valor_unitario} onChange={(e) => actualizarItem(idx, "valor_unitario", e.target.value)} className="w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm bg-verde-claro/40" />
               </div>
               <div className="col-span-1 text-right">
+                <div className="text-[11px] text-gray-400 leading-tight">Importe</div>
+                <div className="text-sm font-medium text-gray-700 leading-tight">{fmt(importeDe(it))}</div>
                 {items.length > 1 && (
                   <button type="button" onClick={() => quitarItem(idx)} className="text-red-500 text-xs hover:underline">
                     Quitar
@@ -406,14 +478,43 @@ export default function NuevaOrdenForm({
             </div>
           ))}
         </div>
-        <div className="flex justify-between items-center pt-2">
+        <p className="text-xs text-gray-400 -mt-1">
+          Escribe el precio <b>con IGV</b> o el valor <b>sin IGV</b>: el otro se calcula solo. En la orden van los valores sin IGV y el IGV (18 %) se calcula
+          sobre el total.
+        </p>
+        <div className="flex justify-between items-start pt-2 gap-6">
           <div className="w-40">
-            <label className="block text-xs text-gray-500 mb-1">Descuento (opcional)</label>
+            <label className="block text-xs text-gray-500 mb-1">Descuento sin IGV (opcional)</label>
             <input type="number" step="0.01" value={descuento} onChange={(e) => setDescuento(e.target.value)} className="w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm" />
           </div>
-          <p className="text-sm text-gray-600">
-            Subtotal estimado: <span className="font-semibold">{totalEstimado.toFixed(2)}</span> (más IGV 18%)
-          </p>
+          <table className="text-sm text-gray-600">
+            <tbody>
+              <tr>
+                <td className="pr-6 py-0.5">Subtotal (sin IGV)</td>
+                <td className="text-right tabular-nums">{sim} {fmt(subtotal)}</td>
+              </tr>
+              {desc ? (
+                <>
+                  <tr>
+                    <td className="pr-6 py-0.5">Descuento</td>
+                    <td className="text-right tabular-nums">- {sim} {fmt(desc)}</td>
+                  </tr>
+                  <tr>
+                    <td className="pr-6 py-0.5">Valor de venta</td>
+                    <td className="text-right tabular-nums">{sim} {fmt(gravada)}</td>
+                  </tr>
+                </>
+              ) : null}
+              <tr>
+                <td className="pr-6 py-0.5">IGV (18 %)</td>
+                <td className="text-right tabular-nums">{sim} {fmt(igv)}</td>
+              </tr>
+              <tr className="border-t border-gray-200">
+                <td className="pr-6 pt-1 font-semibold text-gray-800">Total</td>
+                <td className="text-right pt-1 font-semibold text-gray-800 tabular-nums">{sim} {fmt(total)}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </section>
 
