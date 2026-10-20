@@ -1,7 +1,7 @@
 import React from "react";
 import { Document, Page, View, Text, Image, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
 import path from "node:path";
-import { EMPRESA, GRIS_TEXTO_HEX, VERDE_HEX, VERDE_CLARO_HEX } from "@/lib/empresa";
+import { EMPRESA, GRIS_TEXTO_HEX, VERDE_HEX, VERDE_CLARO_HEX, tipoOrden, ETIQUETA_TIPO_ORDEN } from "@/lib/empresa";
 import { montoALetras } from "@/lib/numeroALetras";
 import type { OrdenCompraData } from "@/lib/types";
 import { terminosOrden } from "@/lib/terminosOrden";
@@ -154,7 +154,9 @@ function OrdenDocumento({ data, fondoDataUri }: { data: OrdenCompraData; fondoDa
   const subtotalItems = Math.round(opGravadas * 100) / 100;
   const descuento = Math.round((data.descuento || 0) * 100) / 100;
   opGravadas = Math.round((subtotalItems - descuento) * 100) / 100;
-  const igv = Math.round(opGravadas * 0.18 * 100) / 100;
+  const tipo = tipoOrden(prov.ruc);
+  const internacional = tipo === "INTERNACIONAL";
+  const igv = internacional ? 0 : Math.round(opGravadas * 0.18 * 100) / 100;
   const total = Math.round((opGravadas + igv) * 100) / 100;
   const son = montoALetras(total, monedaTexto);
 
@@ -163,14 +165,18 @@ function OrdenDocumento({ data, fondoDataUri }: { data: OrdenCompraData; fondoDa
     totales.push(["Subtotal", subtotalItems, false]);
     totales.push(["Descuento", -descuento, false]);
   }
-  totales.push(["Operación gravada", opGravadas, false]);
-  totales.push(["I.G.V. (18%)", igv, false]);
+  if (internacional) {
+    totales.push(["Valor de la importación", opGravadas, false]);
+  } else {
+    totales.push(["Operación gravada", opGravadas, false]);
+    totales.push(["I.G.V. (18%)", igv, false]);
+  }
   totales.push(["IMPORTE TOTAL", total, true]);
 
   // anchos en pt (ancho útil 535)
   const W = incluirCodigo
-    ? { item: 34, cod: 46, desc: 179, cant: 40, um: 36, ent: 58, vu: 66, imp: 76 }
-    : { item: 34, cod: 0, desc: 225, cant: 40, um: 36, ent: 58, vu: 66, imp: 76 };
+    ? { item: 34, cod: 46, desc: 237, cant: 40, um: 36, vu: 66, imp: 76 }
+    : { item: 34, cod: 0, desc: 283, cant: 40, um: 36, vu: 66, imp: 76 };
 
   const cuentas = prov.cuentas_bancarias || [];
   const condicionesExtra = data.condiciones_especiales || [];
@@ -212,7 +218,7 @@ function OrdenDocumento({ data, fondoDataUri }: { data: OrdenCompraData; fondoDa
             <Text style={s.cajaTitulo}>PROVEEDOR</Text>
             {prov.codigo_proveedor ? <Fila l="Código:" v={prov.codigo_proveedor} /> : null}
             <Fila l="Razón social:" v={prov.razon_social || ""} />
-            <Fila l="R.U.C. / DNI:" v={prov.ruc || ""} />
+            <Fila l={internacional ? "Tax ID / Doc.:" : "R.U.C. / DNI:"} v={prov.ruc || ""} />
             <Fila l="Dirección:" v={prov.direccion || ""} />
             <Fila l="ATT:" v={prov.contacto || ""} />
             <Fila l="Teléfono:" v={prov.telefono || ""} />
@@ -227,13 +233,19 @@ function OrdenDocumento({ data, fondoDataUri }: { data: OrdenCompraData; fondoDa
         <View style={{ width: "43%" }}>
           <View style={s.caja}>
             <Fila l="Comprador:" v={data.comprador || "Área de Compras / Logística"} />
-            <Fila l="E:" v={EMPRESA.correos.split(" | ")[0]} />
-            <Fila l="T:" v={EMPRESA.celulares} />
+            <Fila l="Email:" v={EMPRESA.correos.split(" | ")[0]} />
+            <Fila l="Teléfonos:" v={EMPRESA.celulares} />
           </View>
           <View style={[s.caja, { marginTop: 6 }]}>
             <Fila l="Ref. cotización:" v={data.doc_relacionado || ""} />
-            <Fila l="Tipo proveedor:" v="Nacional" />
+            <Fila l="Tipo de orden:" v={ETIQUETA_TIPO_ORDEN[tipo]} />
             <Fila l="Facturar a:" v={`${EMPRESA.nombreLegal}\nR.U.C. ${EMPRESA.ruc}`} />
+            <Fila l="Dirección fiscal:" v={EMPRESA.domicilioFiscal} />
+            <Text style={{ fontSize: 6.8, color: VERDE_OSCURO, marginTop: 1 }}>
+              {internacional
+                ? "La factura (commercial invoice) debe emitirse a nombre de GTO PERU S.A.C. con esta dirección fiscal."
+                : "La factura debe emitirse a nombre de GTO PERU S.A.C., R.U.C. y dirección fiscal indicados."}
+            </Text>
           </View>
         </View>
       </View>
@@ -249,7 +261,6 @@ function OrdenDocumento({ data, fondoDataUri }: { data: OrdenCompraData; fondoDa
           <Text style={[s.thCell, { width: W.desc }]}>Descripción</Text>
           <Text style={[s.thCell, { width: W.cant, textAlign: "right" }]}>Cantidad</Text>
           <Text style={[s.thCell, { width: W.um }]}>{"Unidad\nMedida"}</Text>
-          <Text style={[s.thCell, { width: W.ent }]}>{"Fecha de\nentrega"}</Text>
           <Text style={[s.thCell, { width: W.vu, textAlign: "right" }]}>{`V. Unitario\n(sin IGV) ${monedaSym}`}</Text>
           <Text style={[s.thCell, { width: W.imp, textAlign: "right", borderRightWidth: 0 }]}>{`Importe\n(sin IGV) ${monedaSym}`}</Text>
         </View>
@@ -260,7 +271,6 @@ function OrdenDocumento({ data, fondoDataUri }: { data: OrdenCompraData; fondoDa
             <Text style={[s.td, { width: W.desc, fontFamily: B }]}>{f.descripcion}</Text>
             <Text style={[s.td, { width: W.cant, textAlign: "right" }]}>{String(f.cant)}</Text>
             <Text style={[s.td, { width: W.um }]}>{f.um}</Text>
-            <Text style={[s.td, { width: W.ent, fontSize: 7.2 }]}>{f.entrega}</Text>
             <Text style={[s.td, { width: W.vu, textAlign: "right" }]}>{money(f.vunit)}</Text>
             <Text style={[s.td, { width: W.imp, textAlign: "right", borderRightWidth: 0 }]}>{money(f.vtotal)}</Text>
           </View>
@@ -271,6 +281,7 @@ function OrdenDocumento({ data, fondoDataUri }: { data: OrdenCompraData; fondoDa
         <Text style={s.son}>
           <Text style={{ fontFamily: B }}>SON: </Text>
           {son}.
+          {internacional ? "\n\nOrden internacional (importación): el proveedor no factura IGV; los tributos de importación se liquidan en aduanas." : ""}
         </Text>
         <View style={s.totBox}>
           {totales.map(([label, val, dest], i) => (
