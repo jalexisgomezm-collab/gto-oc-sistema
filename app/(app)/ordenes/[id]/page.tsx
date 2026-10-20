@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { EMPRESA } from "@/lib/empresa";
+import { terminosOrden } from "@/lib/terminosOrden";
 
 const money = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -146,30 +146,20 @@ export default async function DetalleOrdenPage({ params }: { params: Promise<{ i
             </ul>
           </div>
         )}
-        <div>
-          <p className="text-xs font-medium text-gray-500 uppercase mb-1">Cláusulas (van en todas las órdenes)</p>
-          <ol className="list-decimal pl-5 space-y-1.5 text-gray-700">
-            <li>
-              <b>Aceptación de la orden:</b> el proveedor debe confirmar la recepción y aceptación en un plazo máximo de dos (2) días
-              calendario desde su envío; si no comunica observaciones o rechazo en ese plazo, la orden se considera aceptada tácitamente.
-            </li>
-            <li>
-              <b>Documentos para facturación:</b> consignar el número de esta orden y adjuntar factura, guía de remisión o constancia del
-              servicio y conformidad, cuando corresponda. Enviar a: {EMPRESA.correos.split(" | ")[1] || EMPRESA.correos.split(" | ")[0]}
-            </li>
-            {orden.incluir_anticorrupcion !== false ? (
-              <li>
-                <b>Cumplimiento anticorrupción:</b> el proveedor declara conocer y cumplir la legislación peruana e internacional en materia
-                anticorrupción y antisoborno, y se abstiene de ofrecer o entregar beneficios indebidos en el marco de esta orden.
+        <details className="group">
+          <summary className="cursor-pointer text-xs font-medium text-gray-500 uppercase select-none">
+            Términos y condiciones generales ({terminosOrden({ ...orden, items }).clausulas.length} cláusulas, van en la página 2 del PDF y del Word){" "}
+            <span className="normal-case text-verde group-open:hidden">· ver</span>
+          </summary>
+          <ol className="list-decimal pl-5 space-y-1.5 text-gray-700 mt-2">
+            {terminosOrden({ ...orden, items }).clausulas.map((c, i) => (
+              <li key={i}>
+                <b className="text-verde-oscuro">{c.titulo}:</b> {c.texto}
               </li>
-            ) : (
-              <li className="text-gray-400">Cláusula anticorrupción: no incluida en esta orden.</li>
-            )}
+            ))}
           </ol>
-          <p className="text-[11px] text-gray-400 mt-2">
-            El pie del documento indica además que es confidencial y está dirigido solo al proveedor indicado.
-          </p>
-        </div>
+          <p className="text-xs font-semibold text-gray-700 mt-2">{terminosOrden({ ...orden, items }).cierre}</p>
+        </details>
       </div>
     </div>
   );
