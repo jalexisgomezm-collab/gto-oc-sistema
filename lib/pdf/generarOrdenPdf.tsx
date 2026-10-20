@@ -4,6 +4,7 @@ import path from "node:path";
 import { EMPRESA, GRIS_TEXTO_HEX, VERDE_HEX, VERDE_CLARO_HEX } from "@/lib/empresa";
 import { montoALetras } from "@/lib/numeroALetras";
 import type { OrdenCompraData } from "@/lib/types";
+import { terminosOrden } from "@/lib/terminosOrden";
 
 // Formato con recuadros sobre la hoja membretada de GTO PERU (logo arriba y datos de contacto al pie vienen del membrete)
 const GRIS_TEXTO = `#${GRIS_TEXTO_HEX}`;
@@ -52,7 +53,19 @@ const s = StyleSheet.create({
   legal: { fontSize: 7.5, marginBottom: 3, color: "#222222" },
   pie: { position: "absolute", left: 30, right: 30, bottom: 68, flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end" },
   pieConf: { width: "90%", fontSize: 6.5, fontStyle: "italic", color: VERDE_OSCURO },
-  piePagina: { fontSize: 8, color: GRIS_TEXTO, textAlign: "right" }
+  piePagina: { fontSize: 8, color: GRIS_TEXTO, textAlign: "right" },
+  // página de términos y condiciones generales
+  tycTitulo: { fontSize: 15, fontFamily: B, color: VERDE, textAlign: "center" },
+  tycSub: { fontSize: 9, fontFamily: B, textAlign: "center", marginTop: 3, color: "#222222" },
+  tycDatos: { flexDirection: "row", flexWrap: "wrap", backgroundColor: VERDE_CLARO, marginTop: 7, paddingVertical: 4, paddingHorizontal: 4 },
+  tycDato: { width: "25%", paddingHorizontal: 3, paddingVertical: 3 },
+  tycDatoL: { fontSize: 6.5, fontFamily: B, color: VERDE_OSCURO },
+  tycDatoV: { fontSize: 7.5, marginTop: 1 },
+  tycSecc: { fontSize: 10, fontFamily: B, color: VERDE, marginTop: 7, marginBottom: 3 },
+  tycFila: { flexDirection: "row", marginBottom: 2.4 },
+  tycNum: { width: 16, fontSize: 7.4, fontFamily: B, color: VERDE_OSCURO },
+  tycTexto: { flex: 1, fontSize: 7.4, lineHeight: 1.2, textAlign: "justify" },
+  tycCierre: { fontSize: 7.8, fontFamily: B, marginTop: 5 }
 });
 
 function Fila({ l, v }: { l: string; v: string }) {
@@ -70,6 +83,43 @@ function Bloque({ titulo, children }: { titulo: string; children: React.ReactNod
       <Text style={s.bloqueTit}>{titulo}</Text>
       <View style={s.bloqueCuerpo}>{children}</View>
     </View>
+  );
+}
+
+function TerminosPagina({ data, fondoDataUri }: { data: OrdenCompraData; fondoDataUri: string | null }) {
+  const t = terminosOrden(data as any);
+  return (
+    <Page size="A4" style={s.page}>
+      {fondoDataUri ? <Image src={fondoDataUri} style={s.fondo} fixed /> : null}
+      <Text style={s.tycTitulo}>{t.titulo}</Text>
+      <Text style={s.tycSub}>{t.subtitulo}</Text>
+      <View style={s.tycDatos}>
+        {t.datos.map(([l, v]) => (
+          <View key={l} style={s.tycDato}>
+            <Text style={s.tycDatoL}>{l}</Text>
+            <Text style={s.tycDatoV}>{v}</Text>
+          </View>
+        ))}
+      </View>
+      <Text style={s.tycSecc}>CONDICIONES APLICABLES</Text>
+      {t.clausulas.map((c, i) => (
+        <View key={i} style={s.tycFila} wrap={false}>
+          <Text style={s.tycNum}>{i + 1}.</Text>
+          <Text style={s.tycTexto}>
+            <Text style={{ fontFamily: B, color: VERDE }}>{c.titulo}: </Text>
+            {c.texto}
+          </Text>
+        </View>
+      ))}
+      <Text style={s.tycCierre}>{t.cierre}</Text>
+      <View style={s.pie} fixed>
+        <Text style={s.pieConf}>
+          Este documento es confidencial y está dirigido únicamente al proveedor indicado. Si lo recibió por error, por favor
+          notifíquelo a {EMPRESA.correos.split(" | ")[0]} y elimínelo.
+        </Text>
+        <Text style={s.piePagina} render={({ pageNumber, totalPages }) => `${pageNumber} | ${totalPages}`} />
+      </View>
+    </Page>
   );
 }
 
@@ -289,23 +339,10 @@ function OrdenDocumento({ data, fondoDataUri }: { data: OrdenCompraData; fondoDa
           ))}
           {observaciones ? <Text style={s.linea}>{observaciones}</Text> : null}
           <Text style={s.legal}>
-            <Text style={{ fontFamily: B }}>Aceptación de la orden: </Text>
-            El proveedor deberá confirmar la recepción y aceptación de esta orden dentro de un plazo máximo de dos (2) días
-            calendario contados desde su envío. Si no comunica observaciones o rechazo dentro de dicho plazo, la orden se
-            considerará aceptada tácitamente.
+            <Text style={{ fontFamily: B }}>Términos y condiciones: </Text>
+            Esta orden se rige por los Términos y Condiciones Generales de GTO PERÚ que se adjuntan (página siguiente) y forman
+            parte de ella. Su aceptación implica la conformidad con dichos términos.
           </Text>
-          <Text style={s.legal}>
-            <Text style={{ fontFamily: B }}>Documentos para facturación: </Text>
-            Consignar el número de esta orden y adjuntar factura, guía de remisión o constancia del servicio y conformidad,
-            cuando corresponda. Enviar a: {correoFact}
-          </Text>
-          {data.incluir_anticorrupcion !== false ? (
-            <Text style={s.legal}>
-              <Text style={{ fontFamily: B }}>Cumplimiento: </Text>
-              El proveedor declara conocer y cumplir la legislación peruana e internacional en materia anticorrupción y
-              antisoborno, absteniéndose de ofrecer o entregar cualquier beneficio indebido en el marco de esta orden.
-            </Text>
-          ) : null}
         </View>
       </View>
 
@@ -333,6 +370,7 @@ export async function generarOrdenPdf(data: OrdenCompraData): Promise<Buffer> {
   const buf = await renderToBuffer(
     <Document title={`${data.tipo === "SERVICIO" ? "Orden de servicio" : "Orden de compra"} ${data.numero}`}>
       <OrdenDocumento data={data} fondoDataUri={fondoDataUri} />
+      <TerminosPagina data={data} fondoDataUri={fondoDataUri} />
     </Document>
   );
   return buf;
