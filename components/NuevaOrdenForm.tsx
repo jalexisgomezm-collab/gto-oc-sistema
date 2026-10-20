@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import SelectorOT, { etiquetaOT } from "@/components/SelectorOT";
+import { tipoOrden, ETIQUETA_TIPO_ORDEN } from "@/lib/empresa";
 
 interface ProveedorOpcion {
   id: string;
@@ -207,7 +208,9 @@ export default function NuevaOrdenForm({
   const subtotal = r2(items.reduce((acc, it) => acc + importeDe(it), 0));
   const desc = r2(Number(descuento) || 0);
   const gravada = r2(subtotal - desc);
-  const igv = r2(gravada * IGV);
+  const tipoOC = tipoOrden(proveedores.find((p) => p.id === proveedorId)?.ruc);
+  const internacional = tipoOC === "INTERNACIONAL";
+  const igv = internacional ? 0 : r2(gravada * IGV);
   const total = r2(gravada + igv);
   const sim = moneda === "DOLARES" ? "US$" : "S/";
 
@@ -359,6 +362,14 @@ export default function NuevaOrdenForm({
                 </option>
               ))}
             </select>
+            {proveedorId && (
+              <p className={`text-xs mt-1 ${internacional ? "text-amber-700" : "text-gray-400"}`}>
+                Tipo de orden: <b>{ETIQUETA_TIPO_ORDEN[tipoOC]}</b>
+                {internacional
+                  ? " — proveedor sin RUC/DNI peruano: la orden sale sin IGV (los tributos de importación se pagan en aduanas)."
+                  : " (proveedor con RUC/DNI peruano)."}
+              </p>
+            )}
           </div>
           <Campo label="Fecha de emisión" type="date" value={fechaEmision} onChange={setFechaEmision} />
           <div>
@@ -506,7 +517,7 @@ export default function NuevaOrdenForm({
                 </>
               ) : null}
               <tr>
-                <td className="pr-6 py-0.5">IGV (18 %)</td>
+                <td className="pr-6 py-0.5">{internacional ? "IGV (importación: no aplica)" : "IGV (18 %)"}</td>
                 <td className="text-right tabular-nums">{sim} {fmt(igv)}</td>
               </tr>
               <tr className="border-t border-gray-200">
