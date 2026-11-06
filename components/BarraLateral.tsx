@@ -105,6 +105,15 @@ export default function BarraLateral({
           </div>
         ))}
       </nav>
+      <div className="px-3 pb-3">
+        <button
+          type="button"
+          data-directorio-gto
+          className="w-full text-left px-3 py-2 rounded-md text-sm text-gray-600 hover:bg-gray-50"
+        >
+          ✉ Directorio de correos
+        </button>
+      </div>
       <div className="border-t border-gray-200 px-4 py-4">
         <div className="flex items-center gap-3 mb-3">
           <div className="w-9 h-9 rounded-full bg-verde text-white flex items-center justify-center text-xs font-semibold shrink-0">
