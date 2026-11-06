@@ -144,6 +144,14 @@ export default async function SolicitudDetallePage({ params }: { params: Promise
           >
             Imprimir / PDF
           </a>
+          <button
+            type="button"
+            data-directorio-gto
+            title="Directorio de correos de GTO para copiar al enviar el formato"
+            className="bg-white border border-gray-300 text-sm font-medium px-4 py-2 rounded-md hover:bg-gray-50"
+          >
+            ✉ Correos GTO
+          </button>
           <Link href="/solicitudes" className="text-sm text-verde hover:underline">
             ← Volver a solicitudes
           </Link>
