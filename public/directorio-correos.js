@@ -25,7 +25,10 @@
       '.dgto-tools input{flex:1;min-width:160px;padding:7px 10px;border:1px solid #cfd8d3;border-radius:8px;font-size:13px}' +
       '.dgto-list{overflow:auto;padding:4px 8px;flex:1}' +
       '.dgto-row{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:8px}.dgto-row:hover{background:#f1f7f3}' +
-      '.dgto-row label{display:flex;align-items:center;gap:10px;flex:1;cursor:pointer;min-width:0}' +
+      '.dgto-row label{display:flex!important;align-items:center;justify-content:flex-start;gap:10px;flex:1;cursor:pointer;min-width:0;margin:0;text-align:left;font-size:13px;color:#1f2a24}' +
+      '.dgto-row label>span{flex:1;min-width:0;text-align:left}' +
+      '.dgto input[type=checkbox]{width:16px!important;height:16px;min-width:16px;margin:0!important;padding:0!important;flex:0 0 16px;border:0;accent-color:' + VERDE + ';cursor:pointer}' +
+      '.dgto input[type=search]{width:auto}' +
       '.dgto-n{font-size:13px;font-weight:600}.dgto-c{font-size:12.5px;color:#4b5a52;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
       '.dgto-b{border:1px solid #cfd8d3;background:#fff;border-radius:7px;padding:6px 10px;font-size:12.5px;cursor:pointer;white-space:nowrap}' +
       '.dgto-b:hover{border-color:' + VERDE + ';color:' + VERDE + '}.dgto-p{background:' + VERDE + ';border-color:' + VERDE + ';color:#fff}.dgto-p:hover{color:#fff;filter:brightness(1.08)}' +
@@ -171,6 +174,23 @@
     var t = e.target.closest && e.target.closest('[data-directorio-gto]');
     if (t) { e.preventDefault(); abrir(window.DirectorioGTO_opts || {}); }
   });
+
+  // <script src="directorio-correos.js" data-flotante> agrega un boton flotante "Correos GTO" (para sistemas sin menu propio)
+  var yo = document.currentScript;
+  if (yo && yo.hasAttribute('data-flotante')) {
+    var poner = function () {
+      css();
+      if (!document.getElementById('dgto-fab-css')) {
+        var s2 = document.createElement('style'); s2.id = 'dgto-fab-css';
+        s2.textContent = '.dgto-fab{position:fixed;right:18px;bottom:18px;z-index:99990;background:' + VERDE + ';color:#fff;border:0;border-radius:999px;padding:10px 16px;font:600 13px Arial,Helvetica,sans-serif;box-shadow:0 6px 18px rgba(0,0,0,.2);cursor:pointer}.dgto-fab:hover{filter:brightness(1.08)}@media print{.dgto-fab{display:none}}';
+        document.head.appendChild(s2);
+      }
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'dgto-fab'; b.setAttribute('data-directorio-gto', '');
+      b.title = 'Directorio de correos de GTO para copiar al enviar formatos'; b.textContent = '\u2709 Correos GTO';
+      document.body.appendChild(b);
+    };
+    if (document.body) poner(); else document.addEventListener('DOMContentLoaded', poner);
+  }
 
   window.DirectorioGTO = { abrir: abrir, editar: editar, cargar: cargar };
 })();
