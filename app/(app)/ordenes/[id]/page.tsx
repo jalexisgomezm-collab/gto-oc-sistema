@@ -50,6 +50,14 @@ export default async function DetalleOrdenPage({ params }: { params: Promise<{ i
           <a href={`/api/ordenes/${orden.id}/pdf`} className="bg-verde text-white text-sm font-medium px-4 py-2 rounded-md hover:bg-verde-oscuro">
             Descargar PDF
           </a>
+          <button
+            type="button"
+            data-directorio-gto
+            title="Directorio de correos de GTO para copiar al enviar el formato"
+            className="bg-white border border-gray-300 text-sm font-medium px-4 py-2 rounded-md hover:bg-gray-50"
+          >
+            ✉ Correos GTO
+          </button>
         </div>
       </div>
 
