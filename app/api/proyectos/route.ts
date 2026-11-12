@@ -37,31 +37,10 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ proyectos: data || [] });
 }
 
-export async function POST(req: NextRequest) {
-  const supabase = await createClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-
-  const body = await req.json();
-  const nombre = (body.nombre || "").trim();
-  if (!nombre) return NextResponse.json({ error: "El nombre del proyecto es obligatorio" }, { status: 400 });
-
-  const { data, error } = await supabase
-    .from("proyectos")
-    .insert({
-      nombre,
-      tipo: (body.tipo || "OTRO").trim(),
-      cliente: body.cliente || null,
-      numero_oc_cliente: body.numero_oc_cliente || null,
-      numero_orden_trabajo: body.numero_orden_trabajo || null,
-      observaciones: body.observaciones || null,
-      creado_por: user.id
-    })
-    .select("id, nombre, tipo, cliente, numero_oc_cliente, numero_orden_trabajo, estado")
-    .single();
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ proyecto: data });
+// Desde la separación (11/2026) las OT/proyectos son un espejo de solo lectura del Maestro.
+export async function POST(_req: NextRequest) {
+  return NextResponse.json(
+    { error: "Las OT y proyectos ahora se crean y editan en el Maestro de Operaciones. Aquí solo se eligen." },
+    { status: 403 }
+  );
 }
