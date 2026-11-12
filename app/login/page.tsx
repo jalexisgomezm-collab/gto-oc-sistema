@@ -40,8 +40,8 @@ export default function LoginPage() {
       } else {
         // Flujo "implicit": el enlace del correo funciona desde cualquier navegador o celular
         const clienteRecuperacion = createClienteSimple(
-          process.env.NEXT_PUBLIC_SUPABASE_URL || SUPABASE_URL,
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || SUPABASE_ANON_KEY,
+          SUPABASE_URL,
+          SUPABASE_ANON_KEY,
           { auth: { flowType: "implicit", persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
         );
         const { error } = await clienteRecuperacion.auth.resetPasswordForEmail(email, {
