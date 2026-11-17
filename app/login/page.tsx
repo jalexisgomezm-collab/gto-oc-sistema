@@ -57,105 +57,96 @@ export default function LoginPage() {
     }
   }
 
+  const GTO_MENU = "https://sistema-integrado-gto.vercel.app";
+  const cambiar = (m: "login" | "registro" | "recuperar") => {
+    setModo(m);
+    setError(null);
+    setAviso(null);
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
-      <div className="w-full max-w-sm bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-        <h1 className="text-lg font-semibold text-verde mb-1">GTO PERU</h1>
-        <p className="text-sm text-gray-500 mb-6">Módulo de Logística y Compras</p>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {modo === "registro" && (
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Nombre completo</label>
-              <input
-                type="text"
-                required
-                value={nombre}
-                onChange={(e) => setNombre(e.target.value)}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-verde"
-              />
-            </div>
-          )}
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Correo</label>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-verde"
-            />
-          </div>
-          {modo !== "recuperar" && (
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="block text-xs font-medium text-gray-600">Contraseña</label>
-                {modo === "login" && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setModo("recuperar");
-                      setError(null);
-                      setAviso(null);
-                    }}
-                    className="text-xs text-gray-400 hover:text-verde hover:underline"
-                  >
-                    ¿Olvidaste tu contraseña?
-                  </button>
-                )}
+    <div className="gto">
+      <div className="gto-login" style={{ minHeight: "100vh" }}>
+        <div
+          className="panel"
+          role="img"
+          aria-label="GTO · Minería, industria y ferrovías"
+          style={{ backgroundImage: `url(${GTO_MENU}/assets/panel-sectores.jpg)` }}
+        />
+        <div className="form">
+          <form onSubmit={handleSubmit} className="caja">
+            <div className="marca">
+              <img src={`${GTO_MENU}/assets/icono-compras.png`} alt="" />
+              <div>
+                <small>Sistema Integrado GTO</small>
+                <b>Logística y Compras</b>
               </div>
-              <input
-                type="password"
-                required
-                minLength={6}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-verde"
-              />
             </div>
-          )}
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          {aviso && <p className="text-sm text-verde">{aviso}</p>}
+            {error && (
+              <div className="gto-aviso gto-aviso--error" role="alert">
+                <span className="i">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+                </span>
+                <div>
+                  <b>No se pudo continuar</b>
+                  <p>{error === "Invalid login credentials" ? "Correo o contraseña incorrectos." : error}</p>
+                </div>
+              </div>
+            )}
+            {aviso && (
+              <div className="gto-aviso gto-aviso--exito" role="status">
+                <span className="i">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M5 12l5 5L20 7" /></svg>
+                </span>
+                <div><p>{aviso}</p></div>
+              </div>
+            )}
 
-          <button
-            type="submit"
-            disabled={cargando}
-            className="w-full bg-verde text-white text-sm font-medium py-2 rounded-md hover:bg-verde-oscuro disabled:opacity-60"
-          >
-            {cargando
-              ? "Procesando..."
-              : modo === "login"
-              ? "Ingresar"
-              : modo === "registro"
-              ? "Crear cuenta"
-              : "Enviar enlace de recuperación"}
-          </button>
-        </form>
+            {modo === "registro" && (
+              <div className="gto-campo">
+                <label htmlFor="l-nombre">Nombre completo <span className="req">*</span></label>
+                <input id="l-nombre" className="gto-input" type="text" required value={nombre} onChange={(e) => setNombre(e.target.value)} />
+              </div>
+            )}
+            <div className="gto-campo">
+              <label htmlFor="l-email">Correo</label>
+              <input id="l-email" className="gto-input" type="email" required autoComplete="username" placeholder="nombre@gtoperu.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+            </div>
+            {modo !== "recuperar" && (
+              <div className="gto-campo">
+                <label htmlFor="l-pass">Contraseña</label>
+                <input id="l-pass" className="gto-input" type="password" required minLength={6} autoComplete={modo === "registro" ? "new-password" : "current-password"} value={password} onChange={(e) => setPassword(e.target.value)} />
+              </div>
+            )}
+            {modo === "login" && (
+              <a href="#" className="olvido" onClick={(e) => { e.preventDefault(); cambiar("recuperar"); }}>
+                ¿Olvidaste tu contraseña?
+              </a>
+            )}
 
-        {modo === "recuperar" ? (
-          <button
-            onClick={() => {
-              setModo("login");
-              setError(null);
-              setAviso(null);
-            }}
-            className="mt-4 text-xs text-gray-500 hover:text-verde underline"
-          >
-            Volver a iniciar sesión
-          </button>
-        ) : (
-          <button
-            onClick={() => {
-              setModo(modo === "login" ? "registro" : "login");
-              setError(null);
-              setAviso(null);
-            }}
-            className="mt-4 text-xs text-gray-500 hover:text-verde underline"
-          >
-            {modo === "login" ? "¿Nuevo en el equipo? Crear una cuenta" : "Ya tengo una cuenta"}
-          </button>
-        )}
+            <button type="submit" disabled={cargando} className="gto-btn gto-btn--primario" style={{ width: "100%" }}>
+              {cargando
+                ? "Procesando…"
+                : modo === "login"
+                ? "Ingresar"
+                : modo === "registro"
+                ? "Crear cuenta"
+                : "Enviar enlace de recuperación"}
+            </button>
+
+            {modo === "recuperar" ? (
+              <button type="button" className="gto-btn gto-btn--texto" onClick={() => cambiar("login")}>
+                Volver a iniciar sesión
+              </button>
+            ) : (
+              <button type="button" className="gto-btn gto-btn--texto" onClick={() => cambiar(modo === "login" ? "registro" : "login")}>
+                {modo === "login" ? "¿Nuevo en el equipo? Crear una cuenta" : "Ya tengo una cuenta"}
+              </button>
+            )}
+            <a className="volver" href={GTO_MENU}>← Volver al menú</a>
+          </form>
+        </div>
       </div>
     </div>
   );
