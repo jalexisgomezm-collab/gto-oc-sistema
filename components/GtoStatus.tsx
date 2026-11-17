@@ -6,13 +6,13 @@ type API = { mount(host: HTMLElement, opts: { module: string; source?: Source })
 declare global { interface Window { GTOStatus?: API } }
 
 // This URL is replaced by the shared review deployment before committing integrations.
-const ASSET_BASE = "https://sistema-integrado-gto-git-codex-hora-avisos-actividad-gto8.vercel.app/";
+const ASSET_BASE = "https://sistema-integrado-gto.vercel.app/";
 export default function GtoStatus({ module, source }: { module: string; source?: Source }) {
   const host = useRef<HTMLDivElement>(null);
   useEffect(() => {
     let disposed = false;
     let mounted: { dispose(): void } | undefined;
-    const start = () => { if (!disposed && host.current && window.GTOStatus) mounted = window.GTOStatus.mount(host.current, { module, source }); };
+    const start = () => { if (!disposed && host.current && window.GTOStatus) mounted = window.GTOStatus.mount(host.current, { module }); };
     const script = document.createElement("script");
     script.src = ASSET_BASE + "gto-status.js";
     script.async = true;
