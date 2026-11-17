@@ -67,19 +67,18 @@ export default function LoginPage() {
   return (
     <div className="gto">
       <div className="gto-login" style={{ minHeight: "100vh" }}>
-        <div
-          className="panel"
-          role="img"
-          aria-label="GTO · Minería, industria y ferrovías"
-          style={{ backgroundImage: `url(${GTO_MENU}/assets/panel-sectores.jpg)` }}
-        />
+<aside className="gto-sector-panel" aria-label="GTO Perú · Minería, industria y ferrovías">
+  <div className="gto-logo-placa"><img src="https://sistema-integrado-gto.vercel.app/assets/logo-gto.png" alt="GTO Electrónica y Eléctrico de Potencia" /></div>
+  <h1 className="gto-sector-title">SISTEMA INTEGRADO<br />GTO <span>PERÚ</span></h1>
+  <div className="gto-sectores"><div className="gto-sector gto-sector--mina"><span>MINERÍA</span></div><div className="gto-sector gto-sector--industria"><span>INDUSTRIA</span></div><div className="gto-sector gto-sector--ferrea"><span>FERROVÍAS</span></div></div>
+</aside>
         <div className="form">
           <form onSubmit={handleSubmit} className="caja">
             <div className="marca">
               <img src={`${GTO_MENU}/assets/icono-compras.png`} alt="" />
               <div>
                 <small>Sistema Integrado GTO</small>
-                <b>Logística y Compras</b>
+                <h2>Logística y Compras</h2>
               </div>
             </div>
 
@@ -151,3 +150,4 @@ export default function LoginPage() {
     </div>
   );
 }
+

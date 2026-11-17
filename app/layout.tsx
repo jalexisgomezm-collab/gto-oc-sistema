@@ -11,7 +11,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="es">
       <head>
-        <link rel="stylesheet" href="https://sistema-integrado-gto.vercel.app/gto-ui.css" />
+        <link rel="stylesheet" href="https://sistema-integrado-gto.vercel.app/gto-login-v2.css?v=20261117" />
       </head>
       <body className="bg-gray-50 text-gray-900">
         {children}
@@ -20,3 +20,4 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     </html>
   );
 }
+
