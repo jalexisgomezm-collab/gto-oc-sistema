@@ -10,10 +10,13 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es">
+      <head>
+        <link rel="stylesheet" href="https://sistema-integrado-gto.vercel.app/gto-ui.css" />
+      </head>
       <body className="bg-gray-50 text-gray-900">
         {children}
         <Script src="/directorio-correos.js" strategy="afterInteractive" />
       </body>
     </html>
   );
-}
+}
