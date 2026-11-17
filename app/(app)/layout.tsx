@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import "./logistica.css";
 import BarraLateral from "@/components/BarraLateral";
 import { obtenerPerfil, ROL_LABEL } from "@/lib/perfil";
 
@@ -16,11 +17,19 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const rolTexto = ROL_LABEL[perfil?.rol || "solicitante"] || "Usuario";
 
   return (
-    <div className="min-h-screen flex bg-gray-50">
+    <div className="log-shell">
+      <header className="log-header">
+        <a className="log-logo" href="https://sistema-integrado-gto.vercel.app" aria-label="Ir al portal GTO"><img src="/logo-gto.png" alt="GTO Electrónica y Eléctrico de Potencia" /></a>
+        <div className="log-brand"><small>SISTEMA INTEGRADO GTO</small><strong>Logística y Compras</strong></div>
+        <a className="log-portal" href="https://sistema-integrado-gto.vercel.app">Menú GTO ↗</a>
+      </header>
+      <div className="log-workspace">
       <BarraLateral nombre={nombre} correo={correo} esCompras={esCompras} esMaestro={esMaestro} rolTexto={rolTexto} />
-      <div className="flex-1 min-w-0">
-        <main className="max-w-5xl mx-auto px-8 py-8">{children}</main>
+      <div className="log-content">
+        <main className="log-main">{children}</main>
+      </div>
       </div>
     </div>
   );
 }
+
