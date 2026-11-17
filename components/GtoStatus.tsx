@@ -12,7 +12,7 @@ export default function GtoStatus({ module, source }: { module: string; source?:
   useEffect(() => {
     let disposed = false;
     let mounted: { dispose(): void } | undefined;
-    const start = () => { if (!disposed && host.current && window.GTOStatus) mounted = window.GTOStatus.mount(host.current, { module }); };
+    const start = () => { if (!disposed && host.current && window.GTOStatus) mounted = window.GTOStatus.mount(host.current, { module, source }); };
     const script = document.createElement("script");
     script.src = ASSET_BASE + "gto-status.js";
     script.async = true;
