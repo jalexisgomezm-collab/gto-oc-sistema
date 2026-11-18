@@ -16,6 +16,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="bg-gray-50 text-gray-900">
         {children}
         <Script src="/directorio-correos.js" strategy="afterInteractive" />
+        <Script src="/gto-maqueta.js?v=20261118" strategy="afterInteractive" />
       </body>
     </html>
   );
