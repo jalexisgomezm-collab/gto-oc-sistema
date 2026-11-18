@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import GtoOtStatus from "@/components/GtoOtStatus";
+import AvisosLogistica from "@/components/AvisosLogistica";
 import BarraLateral from "@/components/BarraLateral";
 import { obtenerPerfil, ROL_LABEL } from "@/lib/perfil";
 
@@ -17,7 +18,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const rolTexto = ROL_LABEL[perfil?.rol || "solicitante"] || "Usuario";
 
   return (
-    <div className="gto-log-shell"><GtoOtStatus /><div className="gto-log-cuerpo min-h-screen flex bg-gray-50">
+    <div className="gto-log-shell"><GtoOtStatus /><AvisosLogistica /><div className="gto-log-cuerpo min-h-screen flex bg-gray-50">
       <BarraLateral nombre={nombre} correo={correo} esCompras={esCompras} esMaestro={esMaestro} rolTexto={rolTexto} />
       <div className="flex-1 min-w-0">
         <main className="max-w-5xl mx-auto px-8 py-8">{children}</main>
