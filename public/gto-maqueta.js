@@ -14,7 +14,7 @@
   function aplicar() {
     try {
       if (document.querySelector('.gto-log-shell') && !document.getElementById('gto-maqueta-css')) {
-        const l = document.createElement('link'); l.id = 'gto-maqueta-css'; l.rel = 'stylesheet'; l.href = '/gto-maqueta.css?v=20261118'; document.head.append(l);
+        const l = document.createElement('link'); l.id = 'gto-maqueta-css'; l.rel = 'stylesheet'; l.href = '/gto-maqueta.css?v=20261118b'; document.head.append(l);
       }
       const bar = document.querySelector('.gto-log-shell .gto-shared-toolbar'); if (!bar) return;
       const alto = Math.round(bar.getBoundingClientRect().height); if (alto) document.documentElement.style.setProperty('--gto-log-top', alto + 'px');
