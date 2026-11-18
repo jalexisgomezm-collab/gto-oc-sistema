@@ -17,11 +17,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const rolTexto = ROL_LABEL[perfil?.rol || "solicitante"] || "Usuario";
 
   return (
-    <><GtoOtStatus /><div className="min-h-screen flex bg-gray-50">
+    <div className="gto-log-shell"><GtoOtStatus /><div className="gto-log-cuerpo min-h-screen flex bg-gray-50">
       <BarraLateral nombre={nombre} correo={correo} esCompras={esCompras} esMaestro={esMaestro} rolTexto={rolTexto} />
       <div className="flex-1 min-w-0">
         <main className="max-w-5xl mx-auto px-8 py-8">{children}</main>
       </div>
-    </div></>
+    </div></div>
   );
 }
