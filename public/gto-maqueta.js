@@ -49,7 +49,8 @@
         const pop = cuenta.querySelector('.gto-toolbar-popover');
         const nombre = document.querySelector('.gto-log-side .border-t p');
         if (pop && nombre && !pop.querySelector('.gto-toolbar-account')) { const st = document.createElement('strong'); st.className = 'gto-toolbar-account'; st.textContent = nombre.textContent.trim(); pop.prepend(st); }
-        if (pop && salir) { const b = document.createElement('button'); b.type = 'button'; b.className = 'gto-toolbar-action'; b.textContent = 'Cerrar sesión';
+        const yaHaySalir = pop && Array.from(pop.querySelectorAll('button,a')).some(x => /^(salir|cerrar sesi)/i.test(x.textContent.trim()));
+        if (pop && salir && !yaHaySalir) { const b = document.createElement('button'); b.type = 'button'; b.className = 'gto-toolbar-action'; b.textContent = 'Cerrar sesión';
           b.addEventListener('click', () => { const o = Array.from(document.querySelectorAll('.gto-log-side button')).find(x => /cerrar sesi/i.test(x.textContent)); if (o) o.click(); }); pop.append(b); }
       }
     } catch (e) { /* solo diseño */ }
