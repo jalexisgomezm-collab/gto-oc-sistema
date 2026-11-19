@@ -139,9 +139,8 @@ export default function LoginPage() {
                 Volver a iniciar sesión
               </button>
             ) : (
-              <button type="button" className="gto-btn gto-btn--texto" onClick={() => cambiar(modo === "login" ? "registro" : "login")}>
-                {modo === "login" ? "¿Nuevo en el equipo? Crear una cuenta" : "Ya tengo una cuenta"}
-              </button>
+              // Seguridad (19/11/2026): ya no se crean cuentas desde aquí. Los usuarios los crea un administrador.
+              <p className="gto-ayuda" style={{ textAlign: "center" }}>¿No tienes usuario? Pídelo a Administración.</p>
             )}
             <a className="volver" href={GTO_MENU}>← Volver al menú</a>
           </form>
